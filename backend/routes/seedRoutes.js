@@ -1,0 +1,328 @@
+const express = require("express");
+const ClothingItem = require("../models/ClothingItem");
+const Outfit = require("../models/Outfit");
+
+const router = express.Router();
+
+const SEED_CLOTHES = [
+  // Community Sellers - Public Thrift & Reworked Items
+  {
+    name: "Hand-Painted Acid Wash Denim Jacket",
+    category: "Outerwear",
+    color: "Indigo Blue / Paint Splatter",
+    brand: "Custom Levi's Rework",
+    size: "L (Oversized)",
+    image: "https://images.unsplash.com/photo-1551537482-f2075a1d41f2?w=800&auto=format&fit=crop&q=80",
+    description: "One-of-a-kind upcycled trucker jacket with hand-painted botanical back art and distressed collar. Fully sealed and washable.",
+    userId: "u_sophia",
+    sellerName: "Sophia Chen",
+    sellerHandle: "sophia_rework",
+    sellerAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80",
+    isPublic: true,
+    isForSale: true,
+    price: 64,
+    originalPrice: 110,
+    isCustomized: true,
+    condition: "Customized / Upcycled",
+    tags: ["streetwear", "college", "vintage", "party"],
+    likes: ["maya_style", "kai_streetwear"],
+    saves: ["maya_style"],
+    comments: [
+      {
+        userId: "kai_streetwear",
+        username: "kai_streetwear",
+        avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
+        text: "The brushwork on the back yoke is insane! 🔥",
+        createdAt: new Date(Date.now() - 3600000 * 5),
+      },
+      {
+        userId: "maya_style",
+        username: "maya_style",
+        avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+        text: "Is the fit boxy or slim?",
+        createdAt: new Date(Date.now() - 3600000 * 2),
+      },
+    ],
+    status: "Available",
+  },
+  {
+    name: "Vintage 1996 Graphic College Crewneck",
+    category: "Tops",
+    color: "Washed Forest Green",
+    brand: "Champion Reverse Weave",
+    size: "M",
+    image: "https://images.unsplash.com/photo-1556905055-8f358a7a47b2?w=800&auto=format&fit=crop&q=80",
+    description: "Authentic 90s heavyweight fleece with cracked collegiate typography. Super soft interior, zero stains or tears.",
+    userId: "u_alex",
+    sellerName: "Alex Rivers",
+    sellerHandle: "vintage_alex",
+    sellerAvatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80",
+    isPublic: true,
+    isForSale: true,
+    price: 38,
+    originalPrice: 75,
+    isCustomized: false,
+    condition: "Vintage Thrifted",
+    tags: ["college", "casual", "vintage"],
+    likes: ["maya_style", "sophia_rework"],
+    saves: [],
+    comments: [
+      {
+        userId: "maya_style",
+        username: "maya_style",
+        avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+        text: "Love that washed green tone 😍",
+        createdAt: new Date(Date.now() - 3600000 * 12),
+      },
+    ],
+    status: "Available",
+  },
+  {
+    name: "Wide-Leg Pleated Tailored Trousers",
+    category: "Bottoms",
+    color: "Warm Oat Beige",
+    brand: "Cos Studio",
+    size: "30 / M",
+    image: "https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=800&auto=format&fit=crop&q=80",
+    description: "Minimalist drapey trousers with double front pleats. Perfect for college presentations, cafe work, or clean formal looks.",
+    userId: "u_kai",
+    sellerName: "Kai Tanaka",
+    sellerHandle: "kai_streetwear",
+    sellerAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
+    isPublic: true,
+    isForSale: true,
+    price: 42,
+    originalPrice: 98,
+    isCustomized: false,
+    condition: "Like New",
+    tags: ["college", "formal", "minimalist", "casual"],
+    likes: ["sophia_rework"],
+    saves: ["maya_style"],
+    comments: [],
+    status: "Available",
+  },
+  {
+    name: "Retro Platform Chunky Court Sneakers",
+    category: "Shoes",
+    color: "White / Slate Gray",
+    brand: "New Balance 550",
+    size: "US 8.5",
+    image: "https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=800&auto=format&fit=crop&q=80",
+    description: "Worn twice indoors. Clean leather uppers with original insoles. Box included.",
+    userId: "u_alex",
+    sellerName: "Alex Rivers",
+    sellerHandle: "vintage_alex",
+    sellerAvatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80",
+    isPublic: true,
+    isForSale: true,
+    price: 55,
+    originalPrice: 110,
+    isCustomized: false,
+    condition: "Like New",
+    tags: ["casual", "college", "streetwear"],
+    likes: ["maya_style", "kai_streetwear", "sophia_rework"],
+    saves: [],
+    comments: [],
+    status: "Available",
+  },
+  {
+    name: "Satin Asymmetrical Bias Slip Dress",
+    category: "Dresses",
+    color: "Midnight Emerald",
+    brand: "Zara Woman",
+    size: "S",
+    image: "https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=800&auto=format&fit=crop&q=80",
+    description: "Glossy fluid satin midi dress with cowl neck and adjustable strap ties. Worn once for evening gala.",
+    userId: "u_sophia",
+    sellerName: "Sophia Chen",
+    sellerHandle: "sophia_rework",
+    sellerAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80",
+    isPublic: true,
+    isForSale: true,
+    price: 36,
+    originalPrice: 69,
+    isCustomized: false,
+    condition: "Like New",
+    tags: ["party", "formal", "date night"],
+    likes: ["maya_style"],
+    saves: ["maya_style"],
+    comments: [],
+    status: "Available",
+  },
+  {
+    name: "Minimalist Leather Baguette Shoulder Bag",
+    category: "Accessories",
+    color: "Espresso Brown",
+    brand: "Vintage Italy",
+    size: "One Size",
+    image: "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=800&auto=format&fit=crop&q=80",
+    description: "Y2K curved shoulder purse in soft genuine leather with brushed brass hardware.",
+    userId: "u_sophia",
+    sellerName: "Sophia Chen",
+    sellerHandle: "sophia_rework",
+    sellerAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80",
+    isPublic: true,
+    isForSale: true,
+    price: 29,
+    originalPrice: 65,
+    isCustomized: false,
+    condition: "Gently Used",
+    tags: ["casual", "party", "y2k", "college"],
+    likes: ["maya_style"],
+    saves: [],
+    comments: [],
+    status: "Available",
+  },
+
+  // Active User's Private Digital Closet (Maya Lin - u_default)
+  {
+    name: "Heavyweight Boxy White Pocket Tee",
+    category: "Tops",
+    color: "Optic White",
+    brand: "Uniqlo U",
+    size: "M",
+    image: "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800&auto=format&fit=crop&q=80",
+    description: "Daily staple boxy crewneck in thick textured cotton. Goes with literally any bottom.",
+    userId: "u_default",
+    sellerName: "Maya Lin",
+    sellerHandle: "maya_style",
+    sellerAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+    isPublic: false, // In private wardrobe!
+    isForSale: false,
+    price: 18,
+    originalPrice: 28,
+    isCustomized: false,
+    condition: "Like New",
+    tags: ["casual", "college", "minimalist"],
+    likes: [],
+    saves: [],
+    comments: [],
+    status: "Available",
+  },
+  {
+    name: "Relaxed Straight-Leg Charcoal Jeans",
+    category: "Bottoms",
+    color: "Charcoal Washed",
+    brand: "Levi's 501",
+    size: "29 x 30",
+    image: "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=800&auto=format&fit=crop&q=80",
+    description: "Vintage broken-in denim with high rise and flattering straight drape.",
+    userId: "u_default",
+    sellerName: "Maya Lin",
+    sellerHandle: "maya_style",
+    sellerAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+    isPublic: false, // In private wardrobe!
+    isForSale: false,
+    price: 35,
+    originalPrice: 85,
+    isCustomized: false,
+    condition: "Gently Used",
+    tags: ["college", "casual", "streetwear"],
+    likes: [],
+    saves: [],
+    comments: [],
+    status: "Available",
+  },
+  {
+    name: "Classic Low Canvas Skate Shoes",
+    category: "Shoes",
+    color: "Black / Off-White",
+    brand: "Vans Old Skool",
+    size: "US 8",
+    image: "https://images.unsplash.com/photo-1525966222134-fcfa99b8ae77?w=800&auto=format&fit=crop&q=80",
+    description: "Everyday campus sneakers with durable waffle sole.",
+    userId: "u_default",
+    sellerName: "Maya Lin",
+    sellerHandle: "maya_style",
+    sellerAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+    isPublic: false,
+    isForSale: false,
+    price: 25,
+    originalPrice: 65,
+    isCustomized: false,
+    condition: "Gently Used",
+    tags: ["casual", "college", "streetwear"],
+    likes: [],
+    saves: [],
+    comments: [],
+    status: "Available",
+  },
+  {
+    name: "Vintage Cropped Corduroy Overshirt",
+    category: "Outerwear",
+    color: "Amber Caramel",
+    brand: "Thrifted St. John's",
+    size: "M",
+    image: "https://images.unsplash.com/photo-1544441893-675973e31985?w=800&auto=format&fit=crop&q=80",
+    description: "Thick wide-wale corduroy with tortoiseshell buttons.",
+    userId: "u_default",
+    sellerName: "Maya Lin",
+    sellerHandle: "maya_style",
+    sellerAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+    isPublic: true, // Already listed for sale!
+    isForSale: true,
+    price: 32,
+    originalPrice: 58,
+    isCustomized: false,
+    condition: "Like New",
+    tags: ["casual", "college", "vintage"],
+    likes: ["vintage_alex"],
+    saves: [],
+    comments: [],
+    status: "Available",
+  },
+];
+
+// Seed Endpoint
+router.post("/", async (req, res) => {
+  try {
+    // Keep any user-added items, but ensure the catalog has rich seed data if empty or requested
+    const count = await ClothingItem.countDocuments();
+    if (req.query.force === "true" || count < 3) {
+      if (req.query.force === "true") {
+        await ClothingItem.deleteMany({});
+        await Outfit.deleteMany({});
+      }
+      const inserted = await ClothingItem.insertMany(SEED_CLOTHES);
+
+      // Seed a starter outfit for the user
+      const top = inserted.find(i => i.category === "Tops" && i.userId === "u_default") || inserted[1];
+      const bottom = inserted.find(i => i.category === "Bottoms" && i.userId === "u_default") || inserted[2];
+      const shoes = inserted.find(i => i.category === "Shoes" && i.userId === "u_default") || inserted[3];
+      const acc = inserted.find(i => i.category === "Accessories") || inserted[5];
+
+      await Outfit.create({
+        userId: "u_default",
+        creatorHandle: "maya_style",
+        creatorName: "Maya Lin",
+        creatorAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+        name: "Everyday College Stroll",
+        occasion: "College",
+        items: {
+          top: top._id,
+          bottom: bottom._id,
+          shoes: shoes._id,
+          accessory: acc._id,
+        },
+        styleScore: 98,
+        styleNotes: "Neutral high-contrast balance with comfortable drape for campus classes.",
+        isPublic: true,
+        likes: ["sophia_rework", "kai_streetwear"],
+      });
+
+      return res.status(201).json({
+        message: "Seed data initialized successfully!",
+        clothesCount: inserted.length,
+      });
+    }
+
+    return res.status(200).json({
+      message: "Database already contains items. Pass ?force=true to reset.",
+      count,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Seed failed", error: error.message });
+  }
+});
+
+module.exports = router;
