@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   User,
   ShoppingBag,
@@ -18,7 +18,8 @@ import {
 import { useApp } from "../context/AppContext";
 
 export default function ProfilePage() {
-  const { currentUser, users, switchUser, addToCart, showToast } = useApp();
+  const navigate = useNavigate();
+  const { currentUser, addToCart, showToast } = useApp();
 
   const [activeTab, setActiveTab] = useState("rack"); // 'rack', 'wardrobe', 'orders', 'lookbook'
   const [userClothes, setUserClothes] = useState([]);
@@ -26,7 +27,14 @@ export default function ProfilePage() {
   const [userOutfits, setUserOutfits] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    if (!currentUser) {
+      navigate("/login");
+    }
+  }, [currentUser, navigate]);
+
   const fetchProfileData = async () => {
+    if (!currentUser?.id) return;
     try {
       setLoading(true);
       // Fetch user's clothing
@@ -34,21 +42,21 @@ export default function ProfilePage() {
         `http://localhost:5001/api/clothes?userId=${currentUser.id}`
       );
       const clothes = await clothesRes.json();
-      setUserClothes(clothes);
+      setUserClothes(Array.isArray(clothes) ? clothes : []);
 
       // Fetch user orders & sales
       const ordersRes = await fetch(
         `http://localhost:5001/api/orders/user/${currentUser.id}`
       );
       const orders = await ordersRes.json();
-      setOrdersData(orders);
+      setOrdersData(orders || { purchases: [], sales: [], totalEarnings: 0 });
 
       // Fetch user outfits
       const outfitsRes = await fetch(
         `http://localhost:5001/api/outfits?userId=${currentUser.id}`
       );
       const outfits = await outfitsRes.json();
-      setUserOutfits(outfits);
+      setUserOutfits(Array.isArray(outfits) ? outfits : []);
     } catch (err) {
       console.error("Error fetching profile data:", err);
     } finally {
@@ -57,8 +65,14 @@ export default function ProfilePage() {
   };
 
   useEffect(() => {
-    fetchProfileData();
-  }, [currentUser.id]);
+    if (currentUser?.id) {
+      fetchProfileData();
+    }
+  }, [currentUser?.id]);
+
+  if (!currentUser) {
+    return null;
+  }
 
   const itemsForSale = userClothes.filter((c) => c.isForSale);
   const privateWardrobeItems = userClothes.filter((c) => !c.isForSale);
@@ -112,23 +126,6 @@ export default function ProfilePage() {
               <strong>Rs. {ordersData.totalEarnings || 0}</strong>
               <span>Sales Earnings</span>
             </div>
-          </div>
-        </div>
-
-        {/* Quick Creator Account Switcher Box */}
-        <div className="profile-switch-account-box">
-          <span className="switch-hint-label">Switch Creator View:</span>
-          <div className="switch-buttons-list">
-            {users.map((u) => (
-              <button
-                key={u.id}
-                onClick={() => switchUser(u)}
-                className={`switch-user-btn ${u.id === currentUser.id ? "active" : ""}`}
-              >
-                <img src={u.avatar} alt={u.name} />
-                <span>@{u.handle}</span>
-              </button>
-            ))}
           </div>
         </div>
       </div>

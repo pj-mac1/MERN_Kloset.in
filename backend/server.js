@@ -9,6 +9,7 @@ const orderRoutes = require("./routes/orderRoutes");
 const aiRoutes = require("./routes/aiRoutes");
 const seedRoutes = require("./routes/seedRoutes");
 const authRoutes = require("./routes/authRoutes");
+const chatRoutes = require("./routes/chatRoutes");
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/seed", seedRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/chat", chatRoutes);
 
 mongoose
   .connect(process.env.MONGO_URI)

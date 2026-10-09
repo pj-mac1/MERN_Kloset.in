@@ -1,7 +1,8 @@
-import React, { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import React, { useState, useEffect, useRef } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   ShoppingBag,
+  MessageCircle,
   Sparkles,
   Shirt,
   PlusCircle,
@@ -17,17 +18,35 @@ import {
 import { useApp } from "../context/AppContext";
 
 export default function Navbar() {
+  const navigate = useNavigate();
   const location = useLocation();
   const {
     currentUser,
-    users,
-    switchUser,
     cart,
     setIsCartOpen,
+    isChatOpen,
+    setIsChatOpen,
+    unreadChatCount,
     openAuthModal,
     logoutUser,
   } = useApp();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const userMenuRef = useRef(null);
+
+  // Close user menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+        setShowUserMenu(false);
+      }
+    };
+    if (showUserMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showUserMenu]);
 
   const navLinks = [
     { to: "/market", label: "STORE", icon: Store },
@@ -36,7 +55,7 @@ export default function Navbar() {
     { to: "/add", label: "UPLOAD", icon: PlusCircle },
   ];
 
-  const totalCartCount = cart.length;
+  const totalCartCount = cart.reduce((acc, it) => acc + (it.quantity || 1), 0);
 
   return (
     <header className="navbar-container">
@@ -84,106 +103,103 @@ export default function Navbar() {
             )}
           </button>
 
-          {/* User Profile / Auth Button */}
+          {/* Messages / Chat between Buyer & Seller */}
+          <button
+            onClick={() => setIsChatOpen(!isChatOpen)}
+            className="navbar-chat-btn"
+            title="Messages & Buyer-Seller Offers"
+          >
+            <MessageCircle size={20} />
+            {unreadChatCount > 0 && (
+              <span className="navbar-chat-badge">{unreadChatCount}</span>
+            )}
+          </button>
+
+          {/* User Profile / Auth Button - Google style circular logo */}
           {currentUser ? (
-            <div className="user-dropdown-container">
+            <div className="user-dropdown-container" ref={userMenuRef}>
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
-                className="user-pill-btn"
+                className="google-profile-btn"
+                aria-label={`Account: ${currentUser.name}`}
+                title={`${currentUser.name} (${currentUser.email || currentUser.phone || `@${currentUser.handle}`})`}
               >
                 <img
-                  src={currentUser.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"}
+                  src={
+                    currentUser.avatar ||
+                    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"
+                  }
                   alt={currentUser.name}
-                  className="user-avatar-sm"
+                  className="google-profile-avatar"
                 />
-                <div className="user-pill-text">
-                  <span className="user-pill-name">{currentUser.name}</span>
-                  <span className="user-handle">@{currentUser.handle}</span>
-                </div>
-                <ChevronDown size={14} className="chevron-icon" />
               </button>
 
               {showUserMenu && (
-                <div className="user-dropdown-menu">
-                  <div className="dropdown-header">
-                    <p className="dropdown-title">Logged in as</p>
-                    <p className="dropdown-subtitle">{currentUser.name}</p>
-                    <p className="dropdown-contact-meta">
+                <div className="google-account-popover">
+                  <div className="google-account-header">
+                    <img
+                      src={
+                        currentUser.avatar ||
+                        "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"
+                      }
+                      alt={currentUser.name}
+                      className="google-large-avatar"
+                    />
+                    <p className="google-account-name">{currentUser.name}</p>
+                    <p className="google-account-email">
                       {currentUser.registrationMethod === "phone"
-                        ? `📱 ${currentUser.phone || "Phone User"}`
-                        : `✉️ ${currentUser.email || "Gmail User"}`}
+                        ? `+91 ${currentUser.phone}`
+                        : currentUser.email || `@${currentUser.handle}`}
                     </p>
+                    <span className="google-account-handle">@{currentUser.handle}</span>
                   </div>
 
-                  <Link
-                    to="/profile"
-                    onClick={() => setShowUserMenu(false)}
-                    className="dropdown-item profile-link"
-                  >
-                    <User size={16} />
-                    <span>My Profile & Thrift Rack</span>
-                  </Link>
+                  <div className="google-account-actions">
+                    <Link
+                      to="/profile"
+                      onClick={() => setShowUserMenu(false)}
+                      className="google-account-link"
+                    >
+                      <User size={16} />
+                      <span>My Profile & Thrift Rack</span>
+                    </Link>
 
-                  <button
-                    onClick={() => {
-                      setShowUserMenu(false);
-                      openAuthModal("register");
-                    }}
-                    className="dropdown-item"
-                  >
-                    <PlusCircle size={16} />
-                    <span>Register New Account</span>
-                  </button>
-
-                  <div className="dropdown-divider"></div>
-                  <p className="dropdown-label">Quick Switch User Profile:</p>
-
-                  <div className="dropdown-user-list">
-                    {users.slice(0, 4).map((u) => (
-                      <button
-                        key={u.id}
-                        onClick={() => {
-                          switchUser(u);
-                          setShowUserMenu(false);
-                        }}
-                        className={`dropdown-user-option ${
-                          u.id === currentUser.id ? "selected" : ""
-                        }`}
-                      >
-                        <img src={u.avatar} alt={u.name} className="user-avatar-xs" />
-                        <div className="user-option-info">
-                          <span className="user-option-name">{u.name}</span>
-                          <span className="user-option-handle">@{u.handle}</span>
-                        </div>
-                        {u.id === currentUser.id && (
-                          <Check size={14} className="check-icon" />
-                        )}
-                      </button>
-                    ))}
+                    <button
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        openAuthModal("register");
+                      }}
+                      className="google-account-link"
+                    >
+                      <PlusCircle size={16} />
+                      <span>Add / Register Account</span>
+                    </button>
                   </div>
 
-                  <div className="dropdown-divider"></div>
-                  <button
-                    onClick={() => {
-                      logoutUser();
-                      setShowUserMenu(false);
-                    }}
-                    className="dropdown-item logout-link"
-                  >
-                    <LogOut size={16} />
-                    <span>Sign Out</span>
-                  </button>
+                  <div className="google-account-footer">
+                    <button
+                      onClick={() => {
+                        logoutUser();
+                        setShowUserMenu(false);
+                        navigate("/login");
+                      }}
+                      className="google-signout-btn"
+                    >
+                      <LogOut size={16} />
+                      <span>Sign Out</span>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
           ) : (
-            <button
-              onClick={() => openAuthModal("register")}
+            <Link
+              to="/login"
               className="button button-accent auth-cta-btn"
             >
               <LogIn size={16} />
               <span>Register / Sign In</span>
-            </button>
+            </Link>
           )}
         </div>
       </div>

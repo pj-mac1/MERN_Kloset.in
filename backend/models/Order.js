@@ -16,28 +16,34 @@ const orderSchema = new mongoose.Schema(
     },
     sellerId: {
       type: String,
-      required: true,
+      default: "u_seller",
     },
     sellerHandle: {
       type: String,
-      required: true,
+      default: "creator_style",
     },
     sellerName: {
       type: String,
-      required: true,
+      default: "Thrift Creator",
     },
     items: [
       {
         itemId: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "ClothingItem",
+          type: mongoose.Schema.Types.Mixed,
         },
         name: String,
         category: String,
         price: Number,
+        quantity: {
+          type: Number,
+          default: 1,
+        },
         image: String,
         isCustomized: Boolean,
         condition: String,
+        sellerId: String,
+        sellerHandle: String,
+        sellerName: String,
       },
     ],
     totalAmount: {
@@ -46,9 +52,15 @@ const orderSchema = new mongoose.Schema(
     },
     shippingAddress: {
       fullName: String,
+      recipientName: String,
+      phone: String,
+      email: String,
       street: String,
+      addressLine: String,
       city: String,
+      state: String,
       postalCode: String,
+      pincode: String,
       country: String,
     },
     paymentMethod: {
@@ -63,6 +75,7 @@ const orderSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    strict: false,
   }
 );
 

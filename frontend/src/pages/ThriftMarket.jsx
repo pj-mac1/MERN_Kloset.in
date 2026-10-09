@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   ShoppingBag,
+  MessageCircle,
   Sparkles,
   Search,
   Filter,
@@ -20,36 +21,370 @@ import {
   Trash2,
   Lock,
   ArrowRight,
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  X,
   ShieldCheck,
   RefreshCw,
+  SlidersHorizontal,
+  Award,
+  ChevronDown,
+  RotateCcw,
 } from "lucide-react";
 import { useApp } from "../context/AppContext";
+import ConfirmModal from "../components/ConfirmModal";
+
+// Curated Fallback Items to ensure the store never shows a blank screen
+const FALLBACK_THRIFT_ITEMS = [
+  {
+    _id: "fb_burberry_01",
+    name: "Burberry Vintage Nova Check Harrington Jacket – Archive Beige",
+    category: "Outerwear",
+    color: "Archive Beige / Check",
+    brand: "Burberry",
+    size: "L",
+    image: "https://images.unsplash.com/photo-1544441893-675973e31985?w=800&auto=format&fit=crop&q=80",
+    description: "Iconic vintage Burberry Harrington jacket featuring the classic Nova Check cotton lining, horn button throat latch, and storm flap back.",
+    sellerName: "Kloset Luxury Vault",
+    sellerHandle: "kloset_vault",
+    sellerAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
+    sellerPhone: "+91 98765 43210",
+    sellerEmail: "vault@kloset.in",
+    isPublic: true,
+    isForSale: true,
+    price: 4999,
+    originalPrice: 42000,
+    condition: "Like New",
+    tags: ["luxury", "vintage", "old money", "streetwear"],
+    status: "Available",
+    createdAt: new Date().toISOString(),
+  },
+  {
+    _id: "fb_ralph_02",
+    name: "Ralph Lauren Purple Label Cable-Knit Wool-Cashmere Sweater – Hunter Green",
+    category: "Tops",
+    color: "Hunter Green",
+    brand: "Ralph Lauren",
+    size: "M",
+    image: "https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?w=800&auto=format&fit=crop&q=80",
+    description: "Ultra-luxurious Italian-spun cable knit sweater from Ralph Lauren. Incredibly soft hand feel, ribbed hem and cuffs.",
+    sellerName: "Kloset Luxury Vault",
+    sellerHandle: "kloset_vault",
+    sellerAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150",
+    sellerPhone: "+91 98765 43210",
+    sellerEmail: "vault@kloset.in",
+    isPublic: true,
+    isForSale: true,
+    price: 3299,
+    originalPrice: 28500,
+    condition: "Like New",
+    tags: ["old money", "luxury", "casual", "vintage"],
+    status: "Available",
+    createdAt: new Date().toISOString(),
+  },
+  {
+    _id: "fb_gucci_03",
+    name: "Gucci Web Stripe Collar Monogram Pique Polo – Ivory Cream",
+    category: "Tops",
+    color: "Ivory Cream",
+    brand: "Gucci",
+    size: "L",
+    image: "https://images.unsplash.com/photo-1586363104862-3a5e2ab60d99?w=800&auto=format&fit=crop&q=80",
+    description: "Made in Italy Gucci stretch-cotton pique polo shirt with signature Web knit collar and mother-of-pearl buttons.",
+    sellerName: "Kloset Luxury Vault",
+    sellerHandle: "kloset_vault",
+    sellerAvatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150",
+    sellerPhone: "+91 98765 43210",
+    sellerEmail: "vault@kloset.in",
+    isPublic: true,
+    isForSale: true,
+    price: 4199,
+    originalPrice: 36000,
+    condition: "Like New",
+    tags: ["luxury", "party", "streetwear", "casual"],
+    status: "Available",
+    createdAt: new Date().toISOString(),
+  },
+  {
+    _id: "fb_carhartt_04",
+    name: "Carhartt WIP Detroit Blanket-Lined Canvas Work Jacket – Tobacco Brown",
+    category: "Outerwear",
+    color: "Tobacco Brown",
+    brand: "Carhartt",
+    size: "XL",
+    image: "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=800&auto=format&fit=crop&q=80",
+    description: "Heavyweight 12oz organic Dearborn canvas jacket with blanket lining and corduroy collar.",
+    sellerName: "Kloset Curated",
+    sellerHandle: "kloset_drop",
+    sellerAvatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150",
+    sellerPhone: "+91 98765 43210",
+    sellerEmail: "drops@kloset.in",
+    isPublic: true,
+    isForSale: true,
+    price: 2899,
+    originalPrice: 18500,
+    condition: "Vintage Thrifted",
+    tags: ["streetwear", "vintage", "casual"],
+    status: "Available",
+    createdAt: new Date().toISOString(),
+  },
+  {
+    _id: "fb_stussy_05",
+    name: "Stüssy 8-Ball Mohair Blend Knit Cardigan – Bone White / Black",
+    category: "Tops",
+    color: "Bone White",
+    brand: "Stüssy",
+    size: "M",
+    image: "https://images.unsplash.com/photo-1618354691373-d851c5c3a990?w=800&auto=format&fit=crop&q=80",
+    description: "Sold-out Stüssy brushed mohair-wool cardigan with jacquard 8-Ball back graphic.",
+    sellerName: "Kloset Curated",
+    sellerHandle: "kloset_drop",
+    sellerAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
+    sellerPhone: "+91 98765 43210",
+    sellerEmail: "drops@kloset.in",
+    isPublic: true,
+    isForSale: true,
+    price: 2599,
+    originalPrice: 17999,
+    condition: "Like New",
+    tags: ["streetwear", "y2k", "casual", "party"],
+    status: "Available",
+    createdAt: new Date().toISOString(),
+  },
+  {
+    _id: "fb_stone_06",
+    name: "Stone Island Garment-Dyed Crinkle Reps NY Down Puffer – Slate Grey",
+    category: "Outerwear",
+    color: "Slate Grey",
+    brand: "Stone Island",
+    size: "L",
+    image: "https://images.unsplash.com/photo-1548883354-7622d03aca27?w=800&auto=format&fit=crop&q=80",
+    description: "Iconic Stone Island down puffer jacket crafted from ultra-dense crinkle reps nylon.",
+    sellerName: "Kloset Luxury Vault",
+    sellerHandle: "kloset_vault",
+    sellerAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150",
+    sellerPhone: "+91 98765 43210",
+    sellerEmail: "vault@kloset.in",
+    isPublic: true,
+    isForSale: true,
+    price: 6999,
+    originalPrice: 62000,
+    condition: "Brand New with Tags",
+    tags: ["luxury", "streetwear", "outerwear", "athleisure"],
+    status: "Available",
+    createdAt: new Date().toISOString(),
+  },
+  {
+    _id: "fb_puma_07",
+    name: 'Pre-Loved Puma "Since 1948" Graphic Performance T-Shirt – Black',
+    category: "Tops",
+    color: "Black",
+    brand: "Puma",
+    size: "L",
+    image: "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800&auto=format&fit=crop&q=80",
+    description: 'Authentic pre-loved Puma performance graphic tee. Features "Since 1948" chest graphic.',
+    sellerName: "Kloset Curated",
+    sellerHandle: "kloset_drop",
+    sellerAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
+    sellerPhone: "+91 98765 43210",
+    sellerEmail: "drops@kloset.in",
+    isPublic: true,
+    isForSale: true,
+    price: 599,
+    originalPrice: 1999,
+    condition: "Gently Used",
+    tags: ["casual", "streetwear", "vintage", "sports"],
+    status: "Available",
+    createdAt: new Date().toISOString(),
+  },
+  {
+    _id: "fb_underarmour_08",
+    name: 'Under Armour "The Tech Tee" Performance T-Shirt – Heather Grey',
+    category: "Tops",
+    color: "Heather Grey",
+    brand: "Under Armour",
+    size: "XL",
+    image: "https://images.unsplash.com/photo-1581655353564-df123a1eb820?w=800&auto=format&fit=crop&q=80",
+    description: "Under Armour loose fit UA Tech performance t-shirt in heather grey.",
+    sellerName: "Kloset Curated",
+    sellerHandle: "kloset_drop",
+    sellerAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150",
+    sellerPhone: "+91 98765 43210",
+    sellerEmail: "drops@kloset.in",
+    isPublic: true,
+    isForSale: true,
+    price: 699,
+    originalPrice: 1999,
+    condition: "Like New",
+    tags: ["casual", "activewear", "streetwear"],
+    status: "Available",
+    createdAt: new Date().toISOString(),
+  },
+  {
+    _id: "fb_arc_09",
+    name: "Arc'teryx Beta LT GORE-TEX Mountain Shell Jacket – Black Sapphire",
+    category: "Outerwear",
+    color: "Black Sapphire",
+    brand: "Arc'teryx",
+    size: "L",
+    image: "https://images.unsplash.com/photo-1608256246200-53e635b5b65f?w=800&auto=format&fit=crop&q=80",
+    description: "GORE-TEX 3L lightweight technical mountain shell jacket.",
+    sellerName: "Kloset Curated",
+    sellerHandle: "kloset_drop",
+    sellerAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
+    sellerPhone: "+91 98765 43210",
+    sellerEmail: "drops@kloset.in",
+    isPublic: true,
+    isForSale: true,
+    price: 4499,
+    originalPrice: 39500,
+    condition: "Brand New with Tags",
+    tags: ["streetwear", "athleisure", "outerwear", "minimalist"],
+    status: "Available",
+    createdAt: new Date().toISOString(),
+  },
+  {
+    _id: "fb_levi_10",
+    name: "Levi's Vintage Clothing 1954 501 Selvedge Raw Denim Jeans – Rigid Indigo",
+    category: "Bottoms",
+    color: "Rigid Indigo",
+    brand: "Levi's",
+    size: "32",
+    image: "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=800&auto=format&fit=crop&q=80",
+    description: "Exact archival reproduction of 1954 501 jeans made with Cone Mills White Oak pink selvedge raw denim.",
+    sellerName: "Kloset Curated",
+    sellerHandle: "kloset_drop",
+    sellerAvatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150",
+    sellerPhone: "+91 98765 43210",
+    sellerEmail: "drops@kloset.in",
+    isPublic: true,
+    isForSale: true,
+    price: 2699,
+    originalPrice: 19500,
+    condition: "Like New",
+    tags: ["vintage", "casual", "streetwear", "old money"],
+    status: "Available",
+    createdAt: new Date().toISOString(),
+  },
+];
 
 export default function ThriftMarket() {
   const {
+    cart,
     addToCart,
     currentUser,
     showToast,
     openAuthModal,
+    openChatWithItem,
   } = useApp();
 
   // Active Main View: 'buy' | 'sell' | 'my-listings'
   const [activeView, setActiveView] = useState("buy");
 
-  // Market Items State
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Market Items State - Pre-seed with fallback items so store is never 0 on load
+  const [items, setItems] = useState(FALLBACK_THRIFT_ITEMS);
+  const [loading, setLoading] = useState(false);
+  // Auto-remove any product whose thumbnail fails to load
+  const [failedImageIds, setFailedImageIds] = useState(() => new Set());
+  // Custom Delete Listing Confirm Modal State
+  const [listingToDelete, setListingToDelete] = useState(null);
+  const [isDeletingListing, setIsDeletingListing] = useState(false);
 
-  // Filters for Buying
+  // Multi-Attribute Filter Suite (Vibe, Brands, Price Range, Condition, etc.)
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [conditionFilter, setConditionFilter] = useState("All");
+  const [brandFilter, setBrandFilter] = useState("All");
+  const [vibeFilter, setVibeFilter] = useState("All");
+  const [pricePreset, setPricePreset] = useState("all"); // 'all' | 'under_1000' | '1000_2500' | '2500_5000' | 'above_5000'
+  const [minPrice, setMinPrice] = useState(0);
+  const [maxPrice, setMaxPrice] = useState(70000);
   const [onlyCustomized, setOnlyCustomized] = useState(false);
-  const [maxPrice, setMaxPrice] = useState(150);
-  const [sortBy, setSortBy] = useState("newest"); // 'newest' | 'price_low' | 'price_high'
+  const [discountFilter, setDiscountFilter] = useState(0); // min % savings
+  const [sortBy, setSortBy] = useState("newest"); // 'newest' | 'price_low' | 'price_high' | 'discount'
+  const [showFilterDrawer, setShowFilterDrawer] = useState(false);
+
+  const vibeOptions = [
+    "All",
+    "Streetwear",
+    "Luxury / Old Money",
+    "Vintage",
+    "Casual",
+    "Y2K",
+    "Athleisure",
+    "Minimalist",
+    "Party / Glam",
+    "College",
+  ];
+
+  const availableBrands = React.useMemo(() => {
+    const brandSet = new Set();
+    [
+      "Burberry",
+      "Ralph Lauren",
+      "Gucci",
+      "Prada",
+      "Balenciaga",
+      "Stone Island",
+      "Carhartt",
+      "Stüssy",
+      "Arc'teryx",
+      "Supreme",
+      "Nike",
+      "Adidas",
+      "Levi's",
+      "Tommy Hilfiger",
+      "Puma",
+      "Under Armour",
+      "Zara",
+    ].forEach((b) => brandSet.add(b));
+
+    items.forEach((item) => {
+      if (item.brand && item.brand.trim()) {
+        brandSet.add(item.brand.trim());
+      }
+    });
+
+    const list = Array.from(brandSet).sort((a, b) => a.localeCompare(b));
+    return ["All", ...list];
+  }, [items]);
+
+  const activeFiltersCount =
+    (categoryFilter !== "All" ? 1 : 0) +
+    (conditionFilter !== "All" ? 1 : 0) +
+    (brandFilter !== "All" ? 1 : 0) +
+    (vibeFilter !== "All" ? 1 : 0) +
+    (pricePreset !== "all" || maxPrice < 60000 || minPrice > 0 ? 1 : 0) +
+    (onlyCustomized ? 1 : 0) +
+    (discountFilter > 0 ? 1 : 0);
+
+  const handleResetAllFilters = () => {
+    setSearchTerm("");
+    setCategoryFilter("All");
+    setConditionFilter("All");
+    setBrandFilter("All");
+    setVibeFilter("All");
+    setPricePreset("all");
+    setMinPrice(0);
+    setMaxPrice(70000);
+    setOnlyCustomized(false);
+    setDiscountFilter(0);
+    setSortBy("newest");
+  };
 
   // Quick view modal
   const [quickViewItem, setQuickViewItem] = useState(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 220);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   // SELL FORM STATE
   const [sellPhoto, setSellPhoto] = useState(null);
@@ -62,11 +397,11 @@ export default function ThriftMarket() {
     size: "M",
     description: "",
     condition: "Gently Used",
-    price: 30,
-    originalPrice: 65,
+    price: 599,
+    originalPrice: 1499,
     isCustomized: false,
-    sellerPhone: currentUser.phone || "",
-    sellerEmail: currentUser.email || "",
+    sellerPhone: currentUser?.phone || "",
+    sellerEmail: currentUser?.email || "",
     tags: ["vintage", "casual"],
   });
 
@@ -92,7 +427,7 @@ export default function ThriftMarket() {
       condition: "Gently Used",
       price: 38,
       originalPrice: 85,
-      url: "https://images.unsplash.com/photo-1542272604-780c96856592?w=800&auto=format&fit=crop&q=80",
+      url: "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=800&auto=format&fit=crop&q=80",
     },
     {
       title: "Collegiate Heavyweight Hoodie",
@@ -123,10 +458,18 @@ export default function ThriftMarket() {
     try {
       setLoading(true);
       const response = await fetch("http://localhost:5001/api/clothes?isForSale=true");
+      if (!response.ok) {
+        throw new Error(`Server returned HTTP ${response.status}`);
+      }
       const data = await response.json();
-      setItems(data);
+      if (Array.isArray(data) && data.length > 0) {
+        setItems(data);
+      } else {
+        setItems(FALLBACK_THRIFT_ITEMS);
+      }
     } catch (err) {
-      console.error("Failed to load thrift market items:", err);
+      console.warn("Using fallback curated thrift items due to connection delay:", err);
+      // Fallback items are already preset
     } finally {
       setLoading(false);
     }
@@ -134,6 +477,21 @@ export default function ThriftMarket() {
 
   useEffect(() => {
     fetchMarketItems();
+
+    // Auto-poll to sync with backend database if connection was delayed or server restarted
+    const interval = setInterval(() => {
+      fetch("http://localhost:5001/api/clothes?isForSale=true")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (Array.isArray(data) && data.length > 0) {
+            setItems(data);
+            clearInterval(interval);
+          }
+        })
+        .catch(() => {});
+    }, 3500);
+
+    return () => clearInterval(interval);
   }, []);
 
   // Update seller contact when currentUser changes
@@ -259,19 +617,30 @@ export default function ThriftMarket() {
     }
   };
 
-  // Delete an item from seller's listings
-  const handleDeleteListing = async (id) => {
-    if (!window.confirm("Remove this second-hand listing from the thrift store?")) return;
+  // Delete an item from seller's listings using custom ConfirmModal
+  const handleRequestDeleteListing = (item) => {
+    setListingToDelete(item);
+  };
+
+  const handleConfirmDeleteListing = async () => {
+    if (!listingToDelete) return;
+    setIsDeletingListing(true);
     try {
-      const res = await fetch(`http://localhost:5001/api/clothes/${id}`, {
+      const res = await fetch(`http://localhost:5001/api/clothes/${listingToDelete._id}`, {
         method: "DELETE",
       });
       if (res.ok) {
-        setItems((prev) => prev.filter((it) => it._id !== id));
-        showToast("Listing removed from thrift store.");
+        setItems((prev) => prev.filter((it) => it._id !== listingToDelete._id));
+        showToast(`"${listingToDelete.name}" removed from thrift store.`);
+        setListingToDelete(null);
+      } else {
+        showToast("Failed to remove listing", "error");
       }
     } catch (err) {
       console.error("Delete error:", err);
+      showToast("Network error removing listing", "error");
+    } finally {
+      setIsDeletingListing(false);
     }
   };
 
@@ -310,28 +679,172 @@ export default function ThriftMarket() {
   // User's own listings
   const myListings = items.filter((item) => item.userId === currentUser?.id);
 
-  // Filtered Items for Buying
+  // Filtered Items for Buying with Brand, Vibe, Price Range, and Condition
   const filteredItems = items
     .filter((item) => {
-      const matchesSearch =
-        item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.brand?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.sellerHandle?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.color?.toLowerCase().includes(searchTerm.toLowerCase());
+      // Exclude products without thumbnail or whose image failed to load
+      const hasThumb = Boolean(
+        (item.enhancedImage && item.enhancedImage.trim()) ||
+        (item.image && item.image.trim())
+      );
+      if (!hasThumb || failedImageIds.has(item._id)) {
+        return false;
+      }
 
-      const matchesCategory = categoryFilter === "All" || item.category === categoryFilter;
+      const q = searchTerm.toLowerCase().trim();
+      const matchesSearch =
+        !q ||
+        item.name.toLowerCase().includes(q) ||
+        item.brand?.toLowerCase().includes(q) ||
+        item.sellerHandle?.toLowerCase().includes(q) ||
+        item.color?.toLowerCase().includes(q) ||
+        item.tags?.some((t) => t.toLowerCase().includes(q));
+
+      const matchesCategory =
+        categoryFilter === "All" || item.category === categoryFilter;
+
       const matchesCondition =
         conditionFilter === "All" || item.condition === conditionFilter;
-      const matchesCustom = !onlyCustomized || item.isCustomized;
-      const matchesPrice = item.price <= maxPrice;
 
-      return matchesSearch && matchesCategory && matchesCondition && matchesCustom && matchesPrice;
+      const matchesCustom = !onlyCustomized || item.isCustomized;
+
+      // Brand Filter
+      const matchesBrand =
+        brandFilter === "All" ||
+        item.brand?.toLowerCase() === brandFilter.toLowerCase() ||
+        item.brand?.toLowerCase().includes(brandFilter.toLowerCase());
+
+      // Vibe / Aesthetic Filter
+      const matchesVibe =
+        vibeFilter === "All" ||
+        item.tags?.some((t) => {
+          const tLower = t.toLowerCase();
+          if (vibeFilter === "Luxury / Old Money") {
+            return tLower.includes("luxury") || tLower.includes("old money");
+          }
+          if (vibeFilter === "Party / Glam") {
+            return tLower.includes("party") || tLower.includes("glam");
+          }
+          return tLower.includes(vibeFilter.toLowerCase());
+        });
+
+      // Price preset & custom min/max
+      let matchesPrice = item.price >= minPrice && item.price <= maxPrice;
+      if (pricePreset === "under_1000") matchesPrice = matchesPrice && item.price < 1000;
+      else if (pricePreset === "1000_2500") matchesPrice = matchesPrice && item.price >= 1000 && item.price <= 2500;
+      else if (pricePreset === "2500_5000") matchesPrice = matchesPrice && item.price > 2500 && item.price <= 5000;
+      else if (pricePreset === "above_5000") matchesPrice = matchesPrice && item.price > 5000;
+
+      // Savings / Discount
+      const origPrice =
+        item.originalPrice && item.originalPrice > item.price
+          ? item.originalPrice
+          : Math.round(item.price * 2.2);
+      const savings = Math.round(((origPrice - item.price) / origPrice) * 100);
+      const matchesDiscount = discountFilter === 0 || savings >= discountFilter;
+
+      return (
+        matchesSearch &&
+        matchesCategory &&
+        matchesCondition &&
+        matchesCustom &&
+        matchesBrand &&
+        matchesVibe &&
+        matchesPrice &&
+        matchesDiscount
+      );
     })
     .sort((a, b) => {
       if (sortBy === "price_low") return a.price - b.price;
       if (sortBy === "price_high") return b.price - a.price;
+      if (sortBy === "discount") {
+        const origA =
+          a.originalPrice && a.originalPrice > a.price
+            ? a.originalPrice
+            : Math.round(a.price * 2.2);
+        const savingsA = Math.round(((origA - a.price) / origA) * 100);
+        const origB =
+          b.originalPrice && b.originalPrice > b.price
+            ? b.originalPrice
+            : Math.round(b.price * 2.2);
+        const savingsB = Math.round(((origB - b.price) / origB) * 100);
+        return savingsB - savingsA;
+      }
       return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
     });
+
+  // Fullscreen Navigation & Product Scrolling State
+  const currentProductIndex = quickViewItem
+    ? filteredItems.findIndex((it) => it._id === quickViewItem._id)
+    : -1;
+
+  const handlePrevProduct = (e) => {
+    if (e) e.stopPropagation();
+    if (filteredItems.length <= 1) return;
+    const prevIdx =
+      currentProductIndex <= 0 ? filteredItems.length - 1 : currentProductIndex - 1;
+    setQuickViewItem(filteredItems[prevIdx]);
+  };
+
+  const handleNextProduct = (e) => {
+    if (e) e.stopPropagation();
+    if (filteredItems.length <= 1) return;
+    const nextIdx =
+      currentProductIndex >= filteredItems.length - 1 ? 0 : currentProductIndex + 1;
+    setQuickViewItem(filteredItems[nextIdx]);
+  };
+
+  // Keyboard navigation & lock background body scroll when full-screen is active
+  const thumbnailStripRef = useRef(null);
+
+  useEffect(() => {
+    if (!quickViewItem) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") setQuickViewItem(null);
+      if (e.key === "ArrowLeft") handlePrevProduct();
+      if (e.key === "ArrowRight") handleNextProduct();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [quickViewItem, currentProductIndex, filteredItems]);
+
+  // Auto-scroll the active thumbnail into view in the bottom carousel
+  useEffect(() => {
+    if (quickViewItem && thumbnailStripRef.current) {
+      const activeEl = thumbnailStripRef.current.querySelector(".thumb-card-active");
+      if (activeEl) {
+        activeEl.scrollIntoView({
+          behavior: "smooth",
+          block: "nearest",
+          inline: "center",
+        });
+      }
+    }
+  }, [quickViewItem]);
+
+  // Lock body scroll and handle Escape key for right-side filter drawer
+  useEffect(() => {
+    if (!showFilterDrawer) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") setShowFilterDrawer(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [showFilterDrawer]);
 
   return (
     <div className="thrift-store-page">
@@ -379,22 +892,46 @@ export default function ThriftMarket() {
           ========================================================================= */}
       {activeView === "buy" && (
         <div className="buy-section-container">
+          {/* Latest Drop Hero Header (matches reference design) */}
+          <div className="latest-drop-header">
+            <h1 className="latest-drop-title">Latest Drop</h1>
+            <p className="latest-drop-subtitle">
+              With thousands of satisfied customers and growing popularity, Kloset has become a trusted name among thrift and streetwear enthusiasts in India
+            </p>
+          </div>
+
           {/* Controls & Filters Bar */}
           <div className="market-controls-wrapper">
-            {/* Search Input */}
-            <div className="search-bar-wrap">
-              <Search size={18} className="search-icon" />
-              <input
-                type="text"
-                placeholder="Search second-hand clothes (Levi's, oversized sweaters, denim...)"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-              {searchTerm && (
-                <button onClick={() => setSearchTerm("")} className="clear-search-btn">
-                  ✕
-                </button>
-              )}
+            {/* Search Bar + Filters Toggle Button */}
+            <div className="search-and-filter-row">
+              <div className="search-bar-wrap">
+                <Search size={18} className="search-icon" />
+                <input
+                  type="text"
+                  placeholder="Search designer & streetwear thrift (Burberry, Stüssy, Ralph Lauren, Carhartt...)"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                {searchTerm && (
+                  <button onClick={() => setSearchTerm("")} className="clear-search-btn">
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowFilterDrawer(!showFilterDrawer)}
+                className={`market-filter-btn ${showFilterDrawer || activeFiltersCount > 0 ? "filter-btn-active" : ""}`}
+                title="Filter by Vibe, Brand, Price Range, Condition"
+              >
+                <SlidersHorizontal size={17} />
+                <span>Filters</span>
+                {activeFiltersCount > 0 && (
+                  <span className="filter-count-badge">{activeFiltersCount}</span>
+                )}
+                <ChevronDown size={15} className={`filter-chevron ${showFilterDrawer ? "rotated" : ""}`} />
+              </button>
             </div>
 
             {/* Categories Row */}
@@ -410,50 +947,373 @@ export default function ThriftMarket() {
               ))}
             </div>
 
-            {/* Condition & Price Bar */}
-            <div className="sub-filters-row">
-              {/* Garment Condition Filters */}
-              <div className="condition-filter-group">
-                <span className="sub-filter-label">Condition:</span>
-                {conditions.map((cond) => (
+            {/* Right-Aligned E-Commerce Filter Drawer */}
+            {showFilterDrawer && (
+              <div
+                className="filter-drawer-overlay"
+                onClick={() => setShowFilterDrawer(false)}
+              >
+                <aside
+                  className="right-filter-drawer"
+                  onClick={(e) => e.stopPropagation()}
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="Filter collection"
+                >
+                  <div className="drawer-header-bar">
+                    <div className="drawer-title-stack">
+                      <div className="drawer-title-row">
+                        <SlidersHorizontal size={18} />
+                        <h3>Filters</h3>
+                        {activeFiltersCount > 0 && (
+                          <span className="drawer-badge">{activeFiltersCount} active</span>
+                        )}
+                      </div>
+                      <span className="drawer-results-count">
+                        Showing {filteredItems.length} matching pieces
+                      </span>
+                    </div>
+
+                    <div className="drawer-top-actions">
+                      {activeFiltersCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleResetAllFilters}
+                          className="drawer-reset-btn"
+                          title="Reset all filters"
+                        >
+                          <RotateCcw size={13} />
+                          <span>Reset</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setShowFilterDrawer(false)}
+                        className="drawer-close-btn"
+                        title="Close filters"
+                        aria-label="Close filters"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="drawer-scroll-body">
+                    {/* 1. Vibe & Aesthetic */}
+                    <div className="filter-section-card">
+                    <div className="filter-section-header">
+                      <Sparkles size={15} className="f-icon-accent" />
+                      <h4>Vibe & Aesthetic</h4>
+                    </div>
+                    <div className="filter-chips-cluster">
+                      {vibeOptions.map((vb) => (
+                        <button
+                          key={vb}
+                          type="button"
+                          onClick={() => setVibeFilter(vb)}
+                          className={`filter-chip-pill ${vibeFilter === vb ? "active" : ""}`}
+                        >
+                          {vb === "All" ? "All Vibes" : `#${vb}`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 2. Designer & Archival Brands */}
+                  <div className="filter-section-card">
+                    <div className="filter-section-header">
+                      <Award size={15} className="f-icon-accent" />
+                      <h4>Designer & Streetwear Brands</h4>
+                    </div>
+                    <div className="filter-chips-cluster brand-chips-cluster">
+                      {availableBrands.map((b) => (
+                        <button
+                          key={b}
+                          type="button"
+                          onClick={() => setBrandFilter(b)}
+                          className={`filter-chip-pill ${brandFilter === b ? "active brand-active" : ""}`}
+                        >
+                          {b === "All" ? "All Brands" : b}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 3. Price Range (₹ INR) */}
+                  <div className="filter-section-card">
+                    <div className="filter-section-header">
+                      <DollarSign size={15} className="f-icon-accent" />
+                      <h4>Price Range (₹ INR)</h4>
+                    </div>
+                    <div className="filter-chips-cluster">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPricePreset("all");
+                          setMinPrice(0);
+                          setMaxPrice(70000);
+                        }}
+                        className={`filter-chip-pill ${pricePreset === "all" && maxPrice >= 60000 ? "active" : ""}`}
+                      >
+                        All Prices
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPricePreset("under_1000");
+                          setMinPrice(0);
+                          setMaxPrice(1000);
+                        }}
+                        className={`filter-chip-pill ${pricePreset === "under_1000" ? "active" : ""}`}
+                      >
+                        Under ₹1,000
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPricePreset("1000_2500");
+                          setMinPrice(1000);
+                          setMaxPrice(2500);
+                        }}
+                        className={`filter-chip-pill ${pricePreset === "1000_2500" ? "active" : ""}`}
+                      >
+                        ₹1,000 – ₹2,500
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPricePreset("2500_5000");
+                          setMinPrice(2500);
+                          setMaxPrice(5000);
+                        }}
+                        className={`filter-chip-pill ${pricePreset === "2500_5000" ? "active" : ""}`}
+                      >
+                        ₹2,500 – ₹5,000
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPricePreset("above_5000");
+                          setMinPrice(5000);
+                          setMaxPrice(70000);
+                        }}
+                        className={`filter-chip-pill ${pricePreset === "above_5000" ? "active" : ""}`}
+                      >
+                        ₹5,000+ (Luxury Archive)
+                      </button>
+                    </div>
+
+                    <div className="drawer-price-range-slider">
+                      <div className="price-inputs-row">
+                        <span>Max Price Limit: <strong>₹{maxPrice.toLocaleString()}</strong></span>
+                      </div>
+                      <input
+                        type="range"
+                        min="500"
+                        max="70000"
+                        step="250"
+                        value={maxPrice}
+                        onChange={(e) => {
+                          setMaxPrice(Number(e.target.value));
+                          setPricePreset("custom");
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* 4. Condition & Minimum Discount */}
+                  <div className="filter-section-card">
+                    <div className="filter-section-header">
+                      <Tag size={15} className="f-icon-accent" />
+                      <h4>Condition & Minimum Discount</h4>
+                    </div>
+                    <div className="filter-chips-cluster">
+                      {conditions.map((cond) => (
+                        <button
+                          key={cond}
+                          type="button"
+                          onClick={() => setConditionFilter(cond)}
+                          className={`filter-chip-pill ${conditionFilter === cond ? "active" : ""}`}
+                        >
+                          {cond}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="discount-pills-row">
+                      <span className="sub-label">Min Discount:</span>
+                      <button
+                        type="button"
+                        onClick={() => setDiscountFilter(0)}
+                        className={`tag-pill ${discountFilter === 0 ? "active" : ""}`}
+                      >
+                        Any
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDiscountFilter(60)}
+                        className={`tag-pill ${discountFilter === 60 ? "active" : ""}`}
+                      >
+                        60%+ off
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDiscountFilter(75)}
+                        className={`tag-pill ${discountFilter === 75 ? "active" : ""}`}
+                      >
+                        75%+ off
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDiscountFilter(85)}
+                        className={`tag-pill ${discountFilter === 85 ? "active" : ""}`}
+                      >
+                        85%+ off (Vault)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 5. Sort By */}
+                  <div className="filter-section-card">
+                    <div className="filter-section-header">
+                      <RotateCcw size={15} className="f-icon-accent" />
+                      <h4>Sort Collection</h4>
+                    </div>
+                    <div className="filter-chips-cluster">
+                      <button
+                        type="button"
+                        onClick={() => setSortBy("newest")}
+                        className={`filter-chip-pill ${sortBy === "newest" ? "active" : ""}`}
+                      >
+                        Latest Drops
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSortBy("price_low")}
+                        className={`filter-chip-pill ${sortBy === "price_low" ? "active" : ""}`}
+                      >
+                        Price: Low to High
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSortBy("price_high")}
+                        className={`filter-chip-pill ${sortBy === "price_high" ? "active" : ""}`}
+                      >
+                        Price: High to Low
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSortBy("discount")}
+                        className={`filter-chip-pill ${sortBy === "discount" ? "active" : ""}`}
+                      >
+                        Biggest % Savings
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="drawer-footer-actions">
                   <button
-                    key={cond}
-                    onClick={() => setConditionFilter(cond)}
-                    className={`tag-pill ${conditionFilter === cond ? "active" : ""}`}
+                    type="button"
+                    onClick={handleResetAllFilters}
+                    className="button button-secondary drawer-clear-btn"
                   >
-                    {cond}
+                    Reset All Filters
                   </button>
-                ))}
-              </div>
-
-              {/* Price & Sort Filters */}
-              <div className="filter-toggles-group">
-                <div className="sort-select-wrap">
-                  <span className="sub-filter-label">Sort:</span>
-                  <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-                    <option value="newest">Latest Drops</option>
-                    <option value="price_low">Price: Low to High</option>
-                    <option value="price_high">Price: High to Low</option>
-                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setShowFilterDrawer(false)}
+                    className="button button-primary drawer-apply-btn"
+                  >
+                    Show {filteredItems.length} Products
+                  </button>
                 </div>
-
-                <div className="price-slider-wrap">
-                  <span>Max: Rs. {maxPrice}</span>
-                  <input
-                    type="range"
-                    min="10"
-                    max="200"
-                    step="5"
-                    value={maxPrice}
-                    onChange={(e) => setMaxPrice(Number(e.target.value))}
-                  />
-                </div>
-              </div>
+              </aside>
             </div>
+          )}
+
+            {/* Active Filters Summary Bar */}
+            {activeFiltersCount > 0 && (
+              <div className="active-filters-summary-bar">
+                <span className="active-summary-label">Active Filters:</span>
+
+                {categoryFilter !== "All" && (
+                  <button
+                    type="button"
+                    onClick={() => setCategoryFilter("All")}
+                    className="active-tag-chip"
+                  >
+                    Category: {categoryFilter} ✕
+                  </button>
+                )}
+
+                {vibeFilter !== "All" && (
+                  <button
+                    type="button"
+                    onClick={() => setVibeFilter("All")}
+                    className="active-tag-chip"
+                  >
+                    Vibe: #{vibeFilter} ✕
+                  </button>
+                )}
+
+                {brandFilter !== "All" && (
+                  <button
+                    type="button"
+                    onClick={() => setBrandFilter("All")}
+                    className="active-tag-chip brand-tag"
+                  >
+                    Brand: {brandFilter} ✕
+                  </button>
+                )}
+
+                {pricePreset !== "all" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPricePreset("all");
+                      setMinPrice(0);
+                      setMaxPrice(70000);
+                    }}
+                    className="active-tag-chip"
+                  >
+                    Price: {pricePreset.replace("_", " ").toUpperCase()} ✕
+                  </button>
+                )}
+
+                {conditionFilter !== "All" && (
+                  <button
+                    type="button"
+                    onClick={() => setConditionFilter("All")}
+                    className="active-tag-chip"
+                  >
+                    Condition: {conditionFilter} ✕
+                  </button>
+                )}
+
+                {discountFilter > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setDiscountFilter(0)}
+                    className="active-tag-chip"
+                  >
+                    Savings: {discountFilter}%+ off ✕
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleResetAllFilters}
+                  className="clear-all-inline-btn"
+                >
+                  Clear all
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Product Grid */}
-          {loading ? (
+          {loading && items.length === 0 ? (
             <div className="loading-spinner-box">
               <div className="spinner"></div>
               <p>Fetching second-hand pieces from thrift closets...</p>
@@ -461,106 +1321,152 @@ export default function ThriftMarket() {
           ) : filteredItems.length === 0 ? (
             <div className="empty-state">
               <ShoppingBag size={48} />
-              <h3>No second-hand clothes matched your search</h3>
-              <p>Try resetting filters or be the first to sell a piece in this category!</p>
-              <button
-                onClick={() => {
-                  setSearchTerm("");
-                  setCategoryFilter("All");
-                  setConditionFilter("All");
-                  setMaxPrice(150);
-                }}
-                className="button button-secondary"
-                style={{ marginTop: "12px" }}
-              >
-                Reset All Filters
-              </button>
+              <h3>{items.length === 0 ? "Connecting to Kloset Store..." : "No branded clothes matched your filters"}</h3>
+              <p>
+                {items.length === 0
+                  ? "Connecting with the database. Please ensure the backend is running."
+                  : `Currently ${items.length} designer pieces are loaded in the store. Try resetting filters or search terms to see them!`}
+              </p>
+              <div style={{ display: "flex", gap: "10px", justifyContent: "center", marginTop: "14px", flexWrap: "wrap" }}>
+                <button
+                  onClick={handleResetAllFilters}
+                  className="button button-secondary"
+                >
+                  Reset All Filters
+                </button>
+                <button
+                  onClick={fetchMarketItems}
+                  className="button button-primary"
+                  style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+                >
+                  <RefreshCw size={15} /> Refresh Store ({items.length} items)
+                </button>
+              </div>
             </div>
           ) : (
-            <div className="market-products-grid">
+            <div className="mythrift-products-grid">
               {filteredItems.map((item) => {
                 const isSold = item.status === "Sold";
-                const isOwnItem = item.userId === currentUser?.id;
-                const savings =
-                  item.originalPrice > item.price
-                    ? Math.round(
-                        ((item.originalPrice - item.price) / item.originalPrice) * 100
-                      )
-                    : 0;
+                const inCartItem = cart?.find((c) => c._id === item._id);
+                const cartQty = inCartItem ? inCartItem.quantity || 1 : 0;
+                const origPrice =
+                  item.originalPrice && item.originalPrice > item.price
+                    ? item.originalPrice
+                    : Math.round(item.price * 2.2);
+                const savings = Math.round(
+                  ((origPrice - item.price) / origPrice) * 100
+                );
 
                 return (
-                  <div key={item._id} className="product-card thrift-item-card">
-                    <div className="product-image-wrap">
+                  <div key={item._id} className="mythrift-product-card">
+                    {/* Portrait Image Container */}
+                    <div
+                      className="mythrift-image-wrap"
+                      onClick={() => setQuickViewItem(item)}
+                      role="button"
+                      tabIndex={0}
+                      title={`Click to view full details for "${item.name}"`}
+                    >
                       <img
-                        src={item.enhancedImage || item.image || "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=600"}
+                        src={
+                          item.enhancedImage ||
+                          item.image ||
+                          "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=600"
+                        }
                         alt={item.name}
-                        className="product-img"
+                        className="mythrift-card-img"
+                        loading="lazy"
+                        onError={() => {
+                          setFailedImageIds((prev) => {
+                            const updated = new Set(prev);
+                            updated.add(item._id);
+                            return updated;
+                          });
+                        }}
                       />
 
-                      {/* Top Badges */}
-                      <div className="product-badges-top">
-                        <span className="condition-chip-badge">{item.condition}</span>
-                        {savings > 0 && (
-                          <span className="savings-badge-pill">Save {savings}%</span>
-                        )}
-                        {item.isCustomized && (
-                          <span className="custom-rework-badge">
-                            <Palette size={12} /> Rework
-                          </span>
-                        )}
-                        {isSold && <span className="sold-badge">SOLD</span>}
+                      {/* Top-Left Red Discount Badge */}
+                      {savings > 0 && (
+                        <span className="mythrift-discount-badge">
+                          -{savings}%
+                        </span>
+                      )}
+
+                      {/* Top-Right Action Buttons: Quick View & Chat */}
+                      <div className="mythrift-card-corner-actions">
+                        <button
+                          type="button"
+                          className="mythrift-quickview-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setQuickViewItem(item);
+                          }}
+                          title="Quick View Details"
+                        >
+                          <Eye size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          className="mythrift-chat-card-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openChatWithItem(item);
+                          }}
+                          title={`Chat with seller @${item.sellerHandle || "seller"}`}
+                        >
+                          <MessageCircle size={15} />
+                        </button>
                       </div>
 
-                      {/* Quick Action Button */}
-                      <button
-                        onClick={() => setQuickViewItem(item)}
-                        className="quick-view-btn"
-                        title="Quick Details"
-                      >
-                        <Eye size={16} /> View Details
-                      </button>
+                      {/* Bottom-Center Floating Split 'Add to cart' Pill Button */}
+                      {!isSold ? (
+                        <div
+                          className="mythrift-add-cart-pill"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            addToCart(item);
+                            showToast(`Added "${item.name}" to cart! 🛍️`);
+                          }}
+                          role="button"
+                          tabIndex={0}
+                          title="Add to cart"
+                        >
+                          <span className="cart-pill-icon-box">
+                            {cartQty > 0 ? (
+                              <Check size={14} color="#ffffff" />
+                            ) : (
+                              <ShoppingBag size={14} color="#ffffff" />
+                            )}
+                          </span>
+                          <span className="cart-pill-label">
+                            {cartQty > 0 ? `In cart (${cartQty})` : "Add to cart"}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="mythrift-sold-pill">
+                          Sold Out
+                        </div>
+                      )}
                     </div>
 
-                    <div className="product-details">
-                      {/* Seller Info Row */}
-                      <div className="product-seller-row">
-                        <span className="product-seller-handle">
-                          @{item.sellerHandle || "seller"}
+                    {/* Centered Product Details Below Image */}
+                    <div className="mythrift-card-info">
+                      <h3
+                        className="mythrift-card-title"
+                        onClick={() => setQuickViewItem(item)}
+                        title={item.name}
+                      >
+                        {item.name}
+                      </h3>
+
+                      <div className="mythrift-card-price-row">
+                        <span className="mythrift-sale-price">
+                          ₹{Number(item.price).toLocaleString("en-IN")}.00
                         </span>
-                        {item.sellerPhone && (
-                          <span className="seller-contact-chip" title={`Seller: ${item.sellerPhone}`}>
-                            <Phone size={11} /> Verified Seller
+                        {origPrice > item.price && (
+                          <span className="mythrift-original-price">
+                            ₹{Number(origPrice).toLocaleString("en-IN")}.00
                           </span>
-                        )}
-                      </div>
-
-                      <h3 className="product-name">{item.name}</h3>
-
-                      <div className="product-meta-row">
-                        <span className="product-brand">{item.brand || item.category}</span>
-                        {item.size && <span className="product-size">Size {item.size}</span>}
-                        {item.color && <span className="product-color">• {item.color}</span>}
-                      </div>
-
-                      {/* Pricing & Cart Action */}
-                      <div className="product-pricing-bar">
-                        <div className="price-stack">
-                          <span className="price-main">Rs. {item.price}</span>
-                          {item.originalPrice > item.price && (
-                            <span className="price-original">Rs. {item.originalPrice}</span>
-                          )}
-                        </div>
-
-                        {!isSold ? (
-                          <button
-                            onClick={() => addToCart(item)}
-                            className="button button-primary add-bag-btn"
-                          >
-                            <ShoppingBag size={15} />
-                            <span>Add to Bag</span>
-                          </button>
-                        ) : (
-                          <span className="sold-out-text">Sold Out</span>
                         )}
                       </div>
                     </div>
@@ -755,14 +1661,26 @@ export default function ThriftMarket() {
                       </select>
                     </div>
 
-                    <div className="form-group">
-                      <label>Brand / Maker</label>
+                    <div className="form-group brand-select-group">
+                      <label>Brand / Designer Label</label>
                       <input
                         type="text"
-                        placeholder="e.g. Levi's, Zara, Nike, Unbranded"
+                        placeholder="e.g. Burberry, Ralph Lauren, Stüssy, Carhartt, Nike..."
                         value={sellForm.brand}
                         onChange={(e) => setSellForm({ ...sellForm, brand: e.target.value })}
                       />
+                      <div className="sell-brand-chips-row">
+                        {["Burberry", "Ralph Lauren", "Gucci", "Carhartt", "Stüssy", "Stone Island", "Prada", "Nike", "Adidas", "Levi's"].map((b) => (
+                          <button
+                            key={b}
+                            type="button"
+                            onClick={() => setSellForm({ ...sellForm, brand: b })}
+                            className={`mini-brand-chip ${sellForm.brand === b ? "active" : ""}`}
+                          >
+                            {b}
+                          </button>
+                        ))}
+                      </div>
                     </div>
 
                     <div className="form-group">
@@ -1004,7 +1922,7 @@ export default function ThriftMarket() {
                         </button>
 
                         <button
-                          onClick={() => handleDeleteListing(item._id)}
+                          onClick={() => handleRequestDeleteListing(item)}
                           className="button button-secondary delete-sm"
                           title="Delete listing"
                         >
@@ -1021,84 +1939,229 @@ export default function ThriftMarket() {
       )}
 
       {/* =========================================================================
-          QUICK VIEW / DETAILS MODAL
+          FULL-SCREEN PRODUCT DETAILS VIEW WITH SCROLLABLE PRODUCT CAROUSEL
           ========================================================================= */}
       {quickViewItem && (
-        <div className="modal-overlay" onClick={() => setQuickViewItem(null)}>
-          <div className="modal-content quick-view-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="quick-view-grid">
-              <div className="quick-view-image-pane">
-                <img
-                  src={quickViewItem.enhancedImage || quickViewItem.image || "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=600"}
-                  alt={quickViewItem.name}
-                  className="quick-view-img"
-                />
+        <div className="fullscreen-product-overlay">
+          {/* Top Sticky Header */}
+          <div className="fullscreen-topbar">
+            <div className="topbar-left-cluster">
+              <button
+                type="button"
+                onClick={() => setQuickViewItem(null)}
+                className="topbar-back-btn"
+                title="Back to Store (Esc)"
+              >
+                <ArrowLeft size={18} />
+                <span>Back to Store</span>
+              </button>
+
+              <div className="topbar-breadcrumbs">
+                <span className="crumb-category">{quickViewItem.category}</span>
+                <span className="crumb-sep">/</span>
+                <span className="crumb-condition">{quickViewItem.condition}</span>
+              </div>
+            </div>
+
+            <div className="topbar-center-cluster">
+              {currentProductIndex !== -1 && (
+                <div className="product-counter-pill">
+                  <span>Product {currentProductIndex + 1} of {filteredItems.length}</span>
+                </div>
+              )}
+              <span className="topbar-keyboard-hint">
+                Use <strong>←</strong> / <strong>→</strong> to scroll • <strong>Esc</strong> to close
+              </span>
+            </div>
+
+            <div className="topbar-right-cluster">
+              <button
+                type="button"
+                onClick={() => setQuickViewItem(null)}
+                className="fullscreen-close-btn"
+                title="Close (Esc)"
+              >
+                <X size={22} />
+              </button>
+            </div>
+          </div>
+
+          {/* Main Fullscreen Stage */}
+          <div className="fullscreen-stage">
+            {/* Floating Previous Product Arrow */}
+            {filteredItems.length > 1 && (
+              <button
+                type="button"
+                onClick={handlePrevProduct}
+                className="fullscreen-floating-arrow arrow-prev"
+                title="Previous Product (Left Arrow)"
+              >
+                <ChevronLeft size={32} />
+              </button>
+            )}
+
+            {/* Floating Next Product Arrow */}
+            {filteredItems.length > 1 && (
+              <button
+                type="button"
+                onClick={handleNextProduct}
+                className="fullscreen-floating-arrow arrow-next"
+                title="Next Product (Right Arrow)"
+              >
+                <ChevronRight size={32} />
+              </button>
+            )}
+
+            {/* Fullscreen Showcase Grid */}
+            <div className="fullscreen-showcase-grid">
+              {/* Left Column: Full-Height Hero Image Showcase */}
+              <div className="fullscreen-image-showcase">
+                <div className="showcase-img-container">
+                  <img
+                    src={
+                      quickViewItem.enhancedImage ||
+                      quickViewItem.image ||
+                      "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=900"
+                    }
+                    alt={quickViewItem.name}
+                    className="showcase-large-img"
+                  />
+
+                  {/* Badges Overlay */}
+                  <div className="showcase-badges-floating">
+                    <span className="condition-chip-badge">{quickViewItem.condition}</span>
+                    {quickViewItem.isCustomized && (
+                      <span className="custom-rework-badge">
+                        <Palette size={13} /> 1-of-1 Upcycled Art
+                      </span>
+                    )}
+                    {quickViewItem.status === "Sold" && (
+                      <span className="sold-badge">SOLD OUT</span>
+                    )}
+                  </div>
+                </div>
               </div>
 
-              <div className="quick-view-info-pane">
-                <div className="quick-view-header">
-                  <div className="seller-profile-row">
-                    <img
-                      src={quickViewItem.sellerAvatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"}
-                      alt={quickViewItem.sellerName}
-                      className="seller-avatar-mini"
-                    />
-                    <div>
-                      <strong>@{quickViewItem.sellerHandle}</strong>
-                      <p>{quickViewItem.sellerName} • Verified Thrift Seller</p>
+              {/* Right Column: Complete Product Details */}
+              <div className="fullscreen-details-pane">
+                {/* Seller Profile Header */}
+                <div className="fullscreen-seller-card">
+                  <img
+                    src={
+                      quickViewItem.sellerAvatar ||
+                      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"
+                    }
+                    alt={quickViewItem.sellerName}
+                    className="seller-avatar-medium"
+                  />
+                  <div>
+                    <div className="seller-name-row">
+                      <strong>@{quickViewItem.sellerHandle || "seller"}</strong>
+                      <span className="verified-badge">
+                        <ShieldCheck size={14} /> Verified Seller
+                      </span>
                     </div>
+                    <p>{quickViewItem.sellerName || "Thrift Member"} • Direct Community Seller</p>
                   </div>
-                  <button onClick={() => setQuickViewItem(null)} className="close-modal-btn">
-                    ✕
-                  </button>
                 </div>
 
-                <h2 className="quick-view-title">{quickViewItem.name}</h2>
+                <h1 className="fullscreen-product-title">{quickViewItem.name}</h1>
 
-                <div className="quick-view-price-row">
-                  <span className="big-price">Rs. {quickViewItem.price}</span>
+                {/* Price Row */}
+                <div className="fullscreen-price-banner">
+                  <div className="price-stack">
+                    <span className="fullscreen-current-price">
+                      ₹{Number(quickViewItem.price).toLocaleString("en-IN")}.00
+                    </span>
+                    {quickViewItem.originalPrice > quickViewItem.price && (
+                      <span className="fullscreen-original-price">
+                        Original ₹{Number(quickViewItem.originalPrice).toLocaleString("en-IN")}.00
+                      </span>
+                    )}
+                  </div>
                   {quickViewItem.originalPrice > quickViewItem.price && (
-                    <span className="struck-price">Rs. {quickViewItem.originalPrice}</span>
-                  )}
-                  {quickViewItem.isCustomized && (
-                    <span className="custom-rework-badge">
-                      <Palette size={13} /> 1-of-1 Upcycled Art
+                    <span className="fullscreen-discount-chip">
+                      Save{" "}
+                      {Math.round(
+                        ((quickViewItem.originalPrice - quickViewItem.price) /
+                          quickViewItem.originalPrice) *
+                          100
+                      )}
+                      %
                     </span>
                   )}
                 </div>
 
-                <div className="quick-view-specs">
-                  <div className="spec-item">
-                    <span className="spec-label">Category:</span>
+                {/* Specs Grid */}
+                <div className="fullscreen-specs-grid">
+                  <div className="spec-card">
+                    <span className="spec-lbl">Category</span>
                     <strong>{quickViewItem.category}</strong>
                   </div>
-                  <div className="spec-item">
-                    <span className="spec-label">Condition:</span>
-                    <strong>{quickViewItem.condition}</strong>
-                  </div>
-                  <div className="spec-item">
-                    <span className="spec-label">Size:</span>
+                  <div className="spec-card">
+                    <span className="spec-lbl">Size</span>
                     <strong>{quickViewItem.size || "Standard"}</strong>
                   </div>
-                  <div className="spec-item">
-                    <span className="spec-label">Color:</span>
-                    <strong>{quickViewItem.color}</strong>
+                  <div className="spec-card">
+                    <span className="spec-lbl">Color</span>
+                    <strong>{quickViewItem.color || "Multi-tone"}</strong>
+                  </div>
+                  <div className="spec-card">
+                    <span className="spec-lbl">Brand</span>
+                    <strong>{quickViewItem.brand || "Vintage Thrift"}</strong>
+                  </div>
+                  <div className="spec-card">
+                    <span className="spec-lbl">Condition</span>
+                    <strong>{quickViewItem.condition}</strong>
+                  </div>
+                  <div className="spec-card">
+                    <span className="spec-lbl">Availability</span>
+                    <strong style={{ color: quickViewItem.status === "Sold" ? "#b91c1c" : "#16a34a" }}>
+                      {quickViewItem.status === "Sold" ? "Sold Out" : "In Stock"}
+                    </strong>
                   </div>
                 </div>
 
-                <p className="quick-view-desc">{quickViewItem.description}</p>
+                {/* Description Box */}
+                <div className="fullscreen-desc-box">
+                  <h4>Garment Details & Texture</h4>
+                  <p>
+                    {quickViewItem.description ||
+                      "Carefully inspected pre-loved second-hand wardrobe piece. Authentic drape and fabric textures preserved."}
+                  </p>
+                </div>
 
-                {/* Direct Seller Contact Details */}
+                {/* Occasion / Style Tags */}
+                {Array.isArray(quickViewItem.tags) && quickViewItem.tags.length > 0 && (
+                  <div className="fullscreen-tags-row">
+                    <span className="tags-label">Occasion & Vibe:</span>
+                    {quickViewItem.tags.map((t, idx) => (
+                      <span key={idx} className="fullscreen-tag-chip">
+                        #{t}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Direct Seller Contact */}
                 {(quickViewItem.sellerPhone || quickViewItem.sellerEmail) && (
                   <div className="seller-direct-contact-card">
-                    <h5>Direct Seller Contact:</h5>
+                    <h5>Direct Seller Inquiries:</h5>
                     <div className="contact-methods-row">
+                      <button
+                        type="button"
+                        onClick={() => openChatWithItem(quickViewItem)}
+                        className="seller-chat-pill"
+                      >
+                        <MessageCircle size={14} />
+                        <span>Chat & Negotiate</span>
+                      </button>
                       {quickViewItem.sellerPhone && (
                         <a
                           href={`tel:${quickViewItem.sellerPhone}`}
                           className="seller-call-pill"
                         >
-                          <Phone size={13} />
+                          <Phone size={14} />
                           <span>Call / WhatsApp: {quickViewItem.sellerPhone}</span>
                         </a>
                       )}
@@ -1107,37 +2170,139 @@ export default function ThriftMarket() {
                           href={`mailto:${quickViewItem.sellerEmail}`}
                           className="seller-mail-pill"
                         >
-                          <Mail size={13} />
-                          <span>Gmail: {quickViewItem.sellerEmail}</span>
+                          <Mail size={14} />
+                          <span>Email: {quickViewItem.sellerEmail}</span>
                         </a>
                       )}
                     </div>
                   </div>
                 )}
 
-                <div className="quick-view-actions">
+                {/* Add to Bag & Chat Action Bar */}
+                <div className="fullscreen-action-bar">
                   {quickViewItem.status !== "Sold" ? (
                     <button
+                      type="button"
                       onClick={() => {
                         addToCart(quickViewItem);
-                        setQuickViewItem(null);
+                        showToast(`Added "${quickViewItem.name}" to cart! 🛍️`);
                       }}
-                      className="button button-primary big-buy-btn"
+                      className="button button-primary fullscreen-add-bag-btn"
                     >
-                      <ShoppingBag size={18} />
-                      <span>Add to Bag • Rs. {quickViewItem.price}</span>
+                      <ShoppingBag size={20} />
+                      <span>Add to Bag • ₹{Number(quickViewItem.price).toLocaleString("en-IN")}.00</span>
                     </button>
                   ) : (
-                    <button disabled className="button button-secondary disabled-btn">
-                      Item Has Been Sold
+                    <button disabled className="button button-secondary disabled-btn fullscreen-add-bag-btn">
+                      This Piece Has Been Sold
                     </button>
                   )}
+
+                  <button
+                    type="button"
+                    onClick={() => openChatWithItem(quickViewItem)}
+                    className="fullscreen-chat-btn"
+                    title="Direct inquiry & negotiation chat with seller"
+                  >
+                    <MessageCircle size={19} />
+                    <span>Chat with Seller</span>
+                  </button>
                 </div>
               </div>
             </div>
           </div>
+
+          {/* Bottom Shelf: Scrollable Product Strip */}
+          <div className="fullscreen-bottom-strip">
+            <div className="bottom-strip-header">
+              <div className="strip-title-group">
+                <span className="strip-kicker">Scroll & Explore Collection</span>
+                <span className="strip-count">
+                  ({filteredItems.length} products available • click or scroll to switch)
+                </span>
+              </div>
+              <div className="strip-controls">
+                <button
+                  type="button"
+                  onClick={handlePrevProduct}
+                  className="strip-nav-arrow"
+                  title="Previous Product (←)"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNextProduct}
+                  className="strip-nav-arrow"
+                  title="Next Product (→)"
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+
+            <div className="fullscreen-carousel-scroll" ref={thumbnailStripRef}>
+              {filteredItems.map((prod) => {
+                const isActive = prod._id === quickViewItem._id;
+                return (
+                  <div
+                    key={prod._id}
+                    onClick={() => setQuickViewItem(prod)}
+                    className={`fullscreen-thumb-card ${isActive ? "thumb-card-active" : ""}`}
+                    title={`View ${prod.name}`}
+                  >
+                    <div className="thumb-img-wrap">
+                      <img
+                        src={
+                          prod.enhancedImage ||
+                          prod.image ||
+                          "https://images.unsplash.com/photo-1523381210434-271e8be1f52b?w=200"
+                        }
+                        alt={prod.name}
+                        className="thumb-img"
+                      />
+                      {isActive && (
+                        <span className="thumb-active-pill">Viewing</span>
+                      )}
+                      {prod.status === "Sold" && (
+                        <span className="thumb-sold-pill">Sold</span>
+                      )}
+                    </div>
+                    <div className="thumb-info">
+                      <strong className="thumb-name">{prod.name}</strong>
+                      <span className="thumb-price">Rs. {prod.price}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
+      {/* Floating Scroll to Top Button (matches reference design) */}
+      {showScrollTop && (
+        <button
+          type="button"
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          className="mythrift-scroll-to-top"
+          title="Back to Top"
+        >
+          <ChevronUp size={22} />
+        </button>
+      )}
+
+      {/* Custom Delete Listing Confirmation Modal */}
+      <ConfirmModal
+        isOpen={Boolean(listingToDelete)}
+        onClose={() => setListingToDelete(null)}
+        onConfirm={handleConfirmDeleteListing}
+        item={listingToDelete}
+        title="Remove Listing from Store?"
+        message="Are you sure you want to take this item off the thrift market? Other shoppers won't be able to buy it."
+        confirmText="Yes, Remove Listing"
+        cancelText="Keep Listing Active"
+        loading={isDeletingListing}
+      />
     </div>
   );
 }

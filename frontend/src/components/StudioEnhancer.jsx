@@ -145,7 +145,21 @@ export default function StudioEnhancer({
       {/* AI Detection Summary Banner */}
       {analysisResult && (
         <div className="ai-result-banner">
+          <div className="ai-result-header-row">
+            <span className="ai-source-badge">
+              ⚡ {analysisResult.model || "Google Gemini AI Vision"}
+            </span>
+            {analysisResult.suggestedPrice && (
+              <span className="ai-price-estimate">
+                Suggested Resale: <strong>${analysisResult.suggestedPrice}</strong>
+              </span>
+            )}
+          </div>
+
           <div className="ai-result-row">
+            <span className="ai-tag-label">Detected:</span>
+            <strong>{analysisResult.name || analysisResult.category}</strong>
+            <span className="ai-separator">•</span>
             <span className="ai-tag-label">Category:</span>
             <strong>{analysisResult.category}</strong>
             <span className="ai-separator">•</span>
@@ -155,16 +169,25 @@ export default function StudioEnhancer({
             <span className="ai-tag-label">Condition:</span>
             <strong>{analysisResult.condition}</strong>
           </div>
+
+          {analysisResult.stylingAdvice && (
+            <div className="ai-styling-advice-row">
+              <span className="advice-label">Stylist Tip:</span>
+              <span>"{analysisResult.stylingAdvice}"</span>
+            </div>
+          )}
+
           <div className="ai-tags-row">
-            <span className="ai-tag-label">Suggested Occasion Tags:</span>
+            <span className="ai-tag-label">Suggested Tags:</span>
             {analysisResult.tags?.map((t, i) => (
               <span key={i} className="occasion-chip active-chip">
                 #{t}
               </span>
             ))}
           </div>
+
           <p className="ai-tip-note">
-            💡 Form fields below were auto-filled! You can review or tweak them anytime.
+            💡 Form fields below were auto-filled by AI! You can review or customize them anytime.
           </p>
         </div>
       )}

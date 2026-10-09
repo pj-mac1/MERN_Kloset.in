@@ -23,8 +23,6 @@ export default function AuthModal() {
     setAuthModalTab,
     registerUser,
     loginUser,
-    switchUser,
-    users,
   } = useApp();
 
   // Registration state
@@ -424,29 +422,6 @@ export default function AuthModal() {
             </div>
           </form>
         )}
-
-        {/* Quick Demo Accounts Switcher Bar */}
-        <div className="auth-demo-section">
-          <div className="demo-divider">
-            <span>Or quick demo switch</span>
-          </div>
-          <div className="demo-users-pills">
-            {users.slice(0, 3).map((u) => (
-              <button
-                key={u.id}
-                type="button"
-                onClick={() => {
-                  switchUser(u);
-                  closeAuthModal();
-                }}
-                className="demo-user-pill"
-              >
-                <img src={u.avatar} alt={u.name} />
-                <span>@{u.handle}</span>
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );

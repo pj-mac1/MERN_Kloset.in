@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Upload,
@@ -11,6 +11,7 @@ import {
   Check,
   Shirt,
   ShoppingBag,
+  Award,
 } from "lucide-react";
 import StudioEnhancer from "../components/StudioEnhancer";
 import { useApp } from "../context/AppContext";
@@ -18,6 +19,13 @@ import { useApp } from "../context/AppContext";
 export default function AddClothing() {
   const navigate = useNavigate();
   const { currentUser, showToast } = useApp();
+
+  useEffect(() => {
+    if (!currentUser) {
+      showToast("Please sign in or register to upload clothing.", "info");
+      navigate("/login");
+    }
+  }, [currentUser, navigate]);
 
   const [selectedImage, setSelectedImage] = useState(null);
   const [enhancedImage, setEnhancedImage] = useState(null);
@@ -51,6 +59,27 @@ export default function AddClothing() {
     "y2k",
     "minimalist",
     "athleisure",
+  ];
+
+  const popularBrands = [
+    { name: "Burberry", tier: "Luxury" },
+    { name: "Ralph Lauren", tier: "Luxury" },
+    { name: "Gucci", tier: "Luxury" },
+    { name: "Prada", tier: "Luxury" },
+    { name: "Balenciaga", tier: "Luxury" },
+    { name: "Stone Island", tier: "Streetwear" },
+    { name: "Stüssy", tier: "Streetwear" },
+    { name: "Carhartt WIP", tier: "Streetwear" },
+    { name: "Arc'teryx", tier: "Gorpcore" },
+    { name: "Supreme", tier: "Streetwear" },
+    { name: "Nike", tier: "Athletic" },
+    { name: "Adidas", tier: "Athletic" },
+    { name: "Tommy Hilfiger", tier: "Heritage" },
+    { name: "Levi's", tier: "Denim" },
+    { name: "Zara", tier: "Contemporary" },
+    { name: "Puma", tier: "Athletic" },
+    { name: "Vintage Archival", tier: "Vintage" },
+    { name: "Custom Upcycled", tier: "1-of-1" },
   ];
 
   // Sample items to quickly test without looking for local files
@@ -391,27 +420,70 @@ export default function AddClothing() {
               </div>
             </div>
 
-            {/* Brand & Size */}
-            <div className="form-row-2">
-              <div className="form-group">
-                <label>Brand / Origin</label>
+            {/* Dedicated Brand / Designer Label Section */}
+            <div className="form-brand-section-box">
+              <div className="brand-section-title-row">
+                <div className="brand-title-group">
+                  <Award size={18} className="brand-icon-accent" />
+                  <h4>Brand / Designer Label</h4>
+                </div>
+                <span className="brand-hint-text">Choose from curated labels or type custom brand</span>
+              </div>
+
+              {/* Curated Brand Quick Pills */}
+              <div className="brand-quick-pills-grid">
+                {popularBrands.map((b) => {
+                  const isSelected =
+                    formData.brand.toLowerCase() === b.name.toLowerCase();
+                  return (
+                    <button
+                      key={b.name}
+                      type="button"
+                      onClick={() =>
+                        setFormData({
+                          ...formData,
+                          brand: isSelected ? "" : b.name,
+                        })
+                      }
+                      className={`brand-selector-pill ${isSelected ? "selected" : ""}`}
+                    >
+                      <span className="brand-pill-name">{b.name}</span>
+                      <span className="brand-pill-tier">{b.tier}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Custom Brand Text Input */}
+              <div className="brand-text-input-wrap">
                 <input
                   type="text"
-                  placeholder="e.g. Levi's, Thrifted, Stüssy"
+                  placeholder="Or enter custom brand (e.g. Dior, Bape, Vivienne Westwood, Unbranded)..."
                   value={formData.brand}
                   onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
                 />
+                {formData.brand && (
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, brand: "" })}
+                    className="brand-clear-btn"
+                    title="Clear brand"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
+            </div>
 
-              <div className="form-group">
-                <label>Size</label>
-                <input
-                  type="text"
-                  placeholder="e.g. S, M, L, 32, Free Size"
-                  value={formData.size}
-                  onChange={(e) => setFormData({ ...formData, size: e.target.value })}
-                />
-              </div>
+            {/* Size */}
+            <div className="form-group">
+              <label>Garment Size</label>
+              <input
+                type="text"
+                placeholder="e.g. S, M, L, XL, 32 Waist, Free Size"
+                value={formData.size}
+                onChange={(e) => setFormData({ ...formData, size: e.target.value })}
+              />
             </div>
 
             {/* Occasion & Style Tags */}

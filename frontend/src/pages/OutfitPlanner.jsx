@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Sparkles,
   Shuffle,
@@ -16,7 +17,15 @@ import confetti from "canvas-confetti";
 import { useApp } from "../context/AppContext";
 
 export default function OutfitPlanner() {
+  const navigate = useNavigate();
   const { currentUser, showToast } = useApp();
+
+  useEffect(() => {
+    if (!currentUser) {
+      navigate("/login");
+    }
+  }, [currentUser, navigate]);
+
   const [closetItems, setClosetItems] = useState([]);
   const [savedOutfits, setSavedOutfits] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -40,38 +49,228 @@ export default function OutfitPlanner() {
   const [styleFeedback, setStyleFeedback] = useState(
     "Balanced contrast and comfortable relaxed drape for university lectures and coffee runs."
   );
+  const [stylingTip, setStylingTip] = useState(
+    "Pair with clean white socks or minimal silver accents to accentuate silhouette proportions."
+  );
+  const [aiSource, setAiSource] = useState("Google Gemini (Free Tier)");
+  const [aiConsulting, setAiConsulting] = useState(false);
+  const [autoAssembling, setAutoAssembling] = useState(false);
 
   // Tab: 'creator' vs 'lookbook'
   const [activeTab, setActiveTab] = useState("creator");
 
+  // Occasion Rules & Strict Compatibility Scoring
+  const OCCASION_RULES = {
+    Casual: {
+      matching: [
+        "casual", "minimalist", "everyday", "relaxed", "basic", "denim", "tee",
+        "t-shirt", "crewneck", "skate", "canvas", "sneaker", "pocket", "overshirt"
+      ],
+      prohibited: [
+        "formal", "cocktail", "gown", "tuxedo", "suit", "blazer", "ballgown", "black-tie", "satin slip"
+      ],
+    },
+    College: {
+      matching: [
+        "college", "campus", "crewneck", "casual", "vintage", "hoodie", "backpack", "denim", "tote", "sneaker"
+      ],
+      prohibited: ["tuxedo", "ballgown", "cocktail", "formal gown"],
+    },
+    Formal: {
+      matching: [
+        "formal", "tailored", "suit", "blazer", "trouser", "pleated", "elegant", "silk", "oxford", "loafer", "chic"
+      ],
+      prohibited: ["skate", "distressed", "sweatpants", "hoodie", "graphic tee"],
+    },
+    Streetwear: {
+      matching: [
+        "streetwear", "oversized", "y2k", "vintage", "cargo", "hoodie", "acid wash", "sneakers", "baggy"
+      ],
+      prohibited: ["ballgown", "tuxedo", "business suit"],
+    },
+    Party: {
+      matching: [
+        "party", "y2k", "date night", "slip", "leather", "dress", "glam", "statement", "heels"
+      ],
+      prohibited: ["loungewear", "scrubs", "sweatpants", "office formal"],
+    },
+    "Date Night": {
+      matching: [
+        "date night", "party", "chic", "minimalist", "drape", "slip", "knit", "jacket", "leather"
+      ],
+      prohibited: ["sweatpants", "gym", "athleisure"],
+    },
+  };
+
+  const scoreItemForOccasion = (item, occ) => {
+    if (!item) return -999;
+    const config = OCCASION_RULES[occ] || OCCASION_RULES.Casual;
+    const tags = (Array.isArray(item.tags) ? item.tags : []).map((t) => String(t).toLowerCase());
+    const name = String(item.name || "").toLowerCase();
+    const desc = String(item.description || "").toLowerCase();
+    const cat = String(item.category || "").toLowerCase();
+
+    let score = 50;
+
+    if (tags.includes(occ.toLowerCase())) {
+      score += 70;
+    }
+
+    for (const kw of config.matching) {
+      if (tags.includes(kw)) score += 30;
+      if (name.includes(kw)) score += 20;
+      if (desc.includes(kw)) score += 10;
+    }
+
+    for (const pw of config.prohibited) {
+      if (tags.includes(pw)) score -= 80;
+      if (name.includes(pw)) score -= 60;
+      if (desc.includes(pw)) score -= 30;
+    }
+
+    if (occ === "Casual") {
+      if (tags.includes("formal") && !tags.includes("casual")) score -= 120;
+      if (tags.includes("party") && !tags.includes("casual")) score -= 60;
+      if (cat === "dresses" && !tags.includes("casual")) score -= 100;
+      if (
+        name.includes("formal") ||
+        name.includes("gown") ||
+        name.includes("blazer") ||
+        name.includes("slip dress")
+      ) {
+        score -= 100;
+      }
+    }
+
+    if (occ === "Formal") {
+      if (tags.includes("casual") && !tags.includes("formal")) score -= 50;
+      if (
+        name.includes("hoodie") ||
+        name.includes("skate") ||
+        name.includes("pocket tee")
+      ) {
+        score -= 80;
+      }
+    }
+
+    return score;
+  };
+
+  const pickBestSlotItem = (items, occ) => {
+    if (!items || items.length === 0) return null;
+    const scored = items
+      .map((i) => ({ item: i, score: scoreItemForOccasion(i, occ) }))
+      .sort((a, b) => b.score - a.score);
+
+    if (scored.length === 0) return null;
+    const topScore = scored[0].score;
+    const viable = scored.filter((s) => s.score >= topScore - 25);
+    return viable[Math.floor(Math.random() * viable.length)].item;
+  };
+
+  // Smart Occasion-Based Outfit Assembler
+  const assembleOutfitForOccasion = (occ, itemsPool = closetItems) => {
+    if (!itemsPool || itemsPool.length === 0) return;
+
+    const tops = itemsPool.filter((i) => i.category === "Tops" || i.category === "Outerwear");
+    const bottoms = itemsPool.filter((i) => i.category === "Bottoms");
+    const shoes = itemsPool.filter((i) => i.category === "Shoes");
+    const accs = itemsPool.filter(
+      (i) => i.category === "Accessories" || i.category === "Outerwear"
+    );
+
+    const bestTop = pickBestSlotItem(tops, occ);
+    const bestBottom = pickBestSlotItem(bottoms, occ);
+    const bestShoes = pickBestSlotItem(shoes, occ);
+    const bestAcc = pickBestSlotItem(accs, occ);
+
+    if (bestTop) setSelectedTop(bestTop);
+    if (bestBottom) setSelectedBottom(bestBottom);
+    if (bestShoes) setSelectedShoes(bestShoes);
+    if (bestAcc) setSelectedAccessory(bestAcc);
+
+    const calculatedScore = Math.floor(Math.random() * 5) + 94;
+    setStyleScore(calculatedScore);
+
+    const titleTemplates = {
+      Casual: ["Everyday Clean Casual", "Relaxed Weekend Stroll", "Effortless Minimal Fit"],
+      College: ["Campus Lecture Rotation", "Cozy Library Fit", "Collegiate Heritage"],
+      Formal: ["Tailored Minimal Elegance", "Modern Studio Formal", "Structured Smart Fit"],
+      Streetwear: ["Urban Street Drape", "Neo-Vintage Streetwear", "Boxy Silhouette Vibe"],
+      Party: ["Night Out Statement Fit", "Sleek Party Silhouette", "High-Contrast Chic"],
+      "Date Night": ["Subtle Romantic Vibe", "Soft Drape Date Night", "Modern Chic Evening"],
+    };
+
+    const critiques = {
+      Casual: `Effortless proportions with relaxed drape. The ${bestTop?.color || "neutral"} top and ${bestBottom?.color || "casual"} bottoms deliver an easygoing, comfortable daily aesthetic for casual outings.`,
+      College: `Smart collegiate aesthetic with high comfort for lectures and cafe walks. Clean relaxed geometry.`,
+      Formal: `Sharp tailored contours with sophisticated balance. Intentional proportions suited for professional and formal settings.`,
+      Streetwear: `Bold streetwear volume and balanced textures. Footwear anchors the silhouette with retro-modern edge.`,
+      Party: `High visual energy with refined drape. Clean contrast highlights statement accessories for night venues.`,
+      "Date Night": `Subtle texture depth and flattering clean silhouette. Sophisticated undertones without looking overdressed.`,
+    };
+
+    const tips = {
+      Casual: "Pair with clean white canvas sneakers and keep the hem untucked for relaxed drape.",
+      College: "Layer with an open lightweight flannel or corduroy jacket for campus temperature changes.",
+      Formal: "Tuck the shirt neatly and complement with minimal silver/leather accessories.",
+      Streetwear: "Cuff the bottom hems slightly and style with retro chunky platform footwear.",
+      Party: "Add statement jewelry and a sleek compact shoulder bag to complete the evening look.",
+      "Date Night": "Leave the top collar slightly open and pair with subtle clean footwear.",
+    };
+
+    const titles = titleTemplates[occ] || titleTemplates.Casual;
+    setOutfitName(titles[Math.floor(Math.random() * titles.length)]);
+    setStyleFeedback(critiques[occ] || critiques.Casual);
+    setStylingTip(tips[occ] || tips.Casual);
+  };
+
+  // Called when user clicks an occasion button (Casual, Formal, etc.)
+  const handleSelectOccasion = (occ) => {
+    setSelectedOccasion(occ);
+    assembleOutfitForOccasion(occ, closetItems);
+    showToast(`Assembled ${occ} outfit! ✨`);
+  };
+
   // Fetch user closet items and saved outfits
   const fetchData = async () => {
+    if (!currentUser?.id) return;
     try {
       setLoading(true);
+
       // Fetch user's own items
       const itemsRes = await fetch(
         `http://localhost:5001/api/clothes?userId=${currentUser.id}`
       );
-      const itemsData = await itemsRes.json();
-      setClosetItems(itemsData);
+      let userItems = await itemsRes.json();
+      if (!Array.isArray(userItems)) userItems = [];
+
+      // Also fetch community catalog clothes so every occasion has full variety (shoes, bottoms, tops, accessories)
+      const catalogRes = await fetch(`http://localhost:5001/api/clothes?isPublic=true`);
+      let catalogItems = await catalogRes.json();
+      if (!Array.isArray(catalogItems)) catalogItems = [];
+
+      // Combine user items + catalog items without duplicates
+      const combined = [...userItems];
+      const seen = new Set(userItems.map((i) => String(i._id)));
+      for (const item of catalogItems) {
+        if (!seen.has(String(item._id))) {
+          combined.push(item);
+          seen.add(String(item._id));
+        }
+      }
+
+      setClosetItems(combined);
 
       // Also fetch saved outfits
       const outfitsRes = await fetch(
         `http://localhost:5001/api/outfits?userId=${currentUser.id}`
       );
       const outfitsData = await outfitsRes.json();
-      setSavedOutfits(outfitsData);
+      setSavedOutfits(Array.isArray(outfitsData) ? outfitsData : []);
 
-      // Auto-populate slots if empty
-      const tops = itemsData.filter((i) => i.category === "Tops" || i.category === "Outerwear");
-      const bottoms = itemsData.filter((i) => i.category === "Bottoms");
-      const shoes = itemsData.filter((i) => i.category === "Shoes");
-      const accs = itemsData.filter((i) => i.category === "Accessories" || i.category === "Outerwear");
-
-      if (tops.length > 0) setSelectedTop(tops[0]);
-      if (bottoms.length > 0) setSelectedBottom(bottoms[0]);
-      if (shoes.length > 0) setSelectedShoes(shoes[0]);
-      if (accs.length > 0) setSelectedAccessory(accs[0]);
+      // Auto-assemble outfit matching the current occasion!
+      assembleOutfitForOccasion(selectedOccasion, combined);
     } catch (err) {
       console.error("Error loading outfit data:", err);
     } finally {
@@ -80,59 +279,111 @@ export default function OutfitPlanner() {
   };
 
   useEffect(() => {
-    fetchData();
-  }, [currentUser.id]);
+    if (currentUser?.id) {
+      fetchData();
+    }
+  }, [currentUser?.id]);
 
-  // Randomize Outfit generator
+  if (!currentUser) {
+    return null;
+  }
+
+  // Randomize Outfit generator (strictly adheres to selectedOccasion)
   const handleRandomize = () => {
-    // Filter by chosen occasion if possible, else all items
-    const matchOccasion = (item) =>
-      !selectedOccasion ||
-      selectedOccasion === "All" ||
-      item.tags?.includes(selectedOccasion.toLowerCase());
+    assembleOutfitForOccasion(selectedOccasion, closetItems);
+    showToast(`Shuffled a fresh ${selectedOccasion} combination! ✨`);
+  };
 
-    const candidateTops = closetItems.filter(
-      (i) => (i.category === "Tops" || i.category === "Outerwear") && matchOccasion(i)
-    );
-    const candidateBottoms = closetItems.filter(
-      (i) => i.category === "Bottoms" && matchOccasion(i)
-    );
-    const candidateShoes = closetItems.filter(
-      (i) => i.category === "Shoes" && matchOccasion(i)
-    );
-    const candidateAccs = closetItems.filter(
-      (i) => (i.category === "Accessories" || i.category === "Outerwear") && matchOccasion(i)
-    );
+  // Google Gemini AI Stylist Consultation
+  const handleConsultGeminiStylist = async () => {
+    if (!selectedTop && !selectedBottom && !selectedShoes) {
+      showToast("Select at least one clothing piece first to get AI stylist feedback!", "info");
+      return;
+    }
 
-    const pick = (arr, fallbackCategory) => {
-      if (arr.length > 0) return arr[Math.floor(Math.random() * arr.length)];
-      const fallback = closetItems.filter((i) => i.category === fallbackCategory);
-      return fallback[Math.floor(Math.random() * fallback.length)] || null;
-    };
+    try {
+      setAiConsulting(true);
+      const res = await fetch("http://localhost:5001/api/ai/outfit-advice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: {
+            top: selectedTop,
+            bottom: selectedBottom,
+            shoes: selectedShoes,
+            accessory: selectedAccessory,
+          },
+          occasion: selectedOccasion,
+        }),
+      });
 
-    const newTop = pick(candidateTops, "Tops");
-    const newBottom = pick(candidateBottoms, "Bottoms");
-    const newShoes = pick(candidateShoes, "Shoes");
-    const newAcc = pick(candidateAccs, "Accessories");
+      const data = await res.json();
+      if (data.score) setStyleScore(data.score);
+      if (data.verdict) setStyleFeedback(data.verdict);
+      if (data.vibeTitle) setOutfitName(data.vibeTitle);
+      if (data.stylingTip) setStylingTip(data.stylingTip);
+      if (data.model) setAiSource(data.model);
 
-    setSelectedTop(newTop);
-    setSelectedBottom(newBottom);
-    setSelectedShoes(newShoes);
-    setSelectedAccessory(newAcc);
+      confetti({ particleCount: 60, spread: 60 });
+      showToast(`AI Stylist reviewed your outfit for ${selectedOccasion}! ✨`);
+    } catch (err) {
+      console.error("Gemini Stylist error:", err);
+      showToast("Could not reach AI Stylist. Using local recommendation.", "info");
+    } finally {
+      setAiConsulting(false);
+    }
+  };
 
-    // Dynamic style score & critique
-    const calculatedScore = Math.floor(Math.random() * 8) + 92;
-    setStyleScore(calculatedScore);
+  // Google Gemini AI Auto-Assemble Fit from Closet
+  const handleGeminiAutoAssemble = async () => {
+    if (closetItems.length === 0) {
+      showToast("Upload items to your closet first to let AI assemble fits!", "info");
+      return;
+    }
 
-    const critiques = [
-      `Aesthetic ${selectedOccasion} silhouette with effortless proportion balance.`,
-      `Color tones harmonize seamlessly. Textures create depth without visual clutter.`,
-      `Clean everyday styling with high comfort and versatile layering.`,
-      `Contemporary thrift look with vintage proportions and modern footwear.`,
-    ];
-    setStyleFeedback(critiques[Math.floor(Math.random() * critiques.length)]);
-    setOutfitName(`${selectedOccasion} ${["Aesthetic", "Drape", "Vibe", "Rotation"][Math.floor(Math.random() * 4)]}`);
-    showToast("Generated a fresh outfit combination! ✨");
+    try {
+      setAutoAssembling(true);
+      const res = await fetch("http://localhost:5001/api/ai/suggest-outfit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          closetItems,
+          occasion: selectedOccasion,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.topId) {
+        const topMatch = closetItems.find((i) => i._id === data.topId);
+        if (topMatch) setSelectedTop(topMatch);
+      }
+      if (data.bottomId) {
+        const btmMatch = closetItems.find((i) => i._id === data.bottomId);
+        if (btmMatch) setSelectedBottom(btmMatch);
+      }
+      if (data.shoesId) {
+        const shoeMatch = closetItems.find((i) => i._id === data.shoesId);
+        if (shoeMatch) setSelectedShoes(shoeMatch);
+      }
+      if (data.accessoryId) {
+        const accMatch = closetItems.find((i) => i._id === data.accessoryId);
+        if (accMatch) setSelectedAccessory(accMatch);
+      }
+
+      if (data.title) setOutfitName(data.title);
+      if (data.rationale) setStyleFeedback(data.rationale);
+      if (data.stylingTip) setStylingTip(data.stylingTip);
+      if (data.model) setAiSource(data.model);
+
+      confetti({ particleCount: 75, spread: 70 });
+      showToast(`AI curated an outfit for ${selectedOccasion}! ✨`);
+    } catch (err) {
+      console.error("Auto assemble error:", err);
+      // Fallback to local randomizer
+      handleRandomize();
+    } finally {
+      setAutoAssembling(false);
+    }
   };
 
   // Save outfit to lookbook
@@ -191,19 +442,27 @@ export default function OutfitPlanner() {
     }
   };
 
-  // Items filtered for active picker slot modal
+  // Items filtered for active picker slot modal (sorted by occasion fit)
   const getPickerItems = () => {
+    let pool = [];
     if (activePickingSlot === "top")
-      return closetItems.filter((i) => i.category === "Tops" || i.category === "Outerwear");
-    if (activePickingSlot === "bottom")
-      return closetItems.filter((i) => i.category === "Bottoms");
-    if (activePickingSlot === "shoes")
-      return closetItems.filter((i) => i.category === "Shoes");
-    if (activePickingSlot === "accessory")
-      return closetItems.filter(
+      pool = closetItems.filter(
+        (i) => i.category === "Tops" || i.category === "Outerwear" || i.category === "Dresses"
+      );
+    else if (activePickingSlot === "bottom")
+      pool = closetItems.filter((i) => i.category === "Bottoms");
+    else if (activePickingSlot === "shoes")
+      pool = closetItems.filter((i) => i.category === "Shoes");
+    else if (activePickingSlot === "accessory")
+      pool = closetItems.filter(
         (i) => i.category === "Accessories" || i.category === "Outerwear"
       );
-    return [];
+
+    return pool.sort(
+      (a, b) =>
+        scoreItemForOccasion(b, selectedOccasion) -
+        scoreItemForOccasion(a, selectedOccasion)
+    );
   };
 
   return (
@@ -352,7 +611,7 @@ export default function OutfitPlanner() {
                 {occasions.map((occ) => (
                   <button
                     key={occ}
-                    onClick={() => setSelectedOccasion(occ)}
+                    onClick={() => handleSelectOccasion(occ)}
                     className={`occ-btn ${selectedOccasion === occ ? "active" : ""}`}
                   >
                     {occ}
@@ -370,23 +629,67 @@ export default function OutfitPlanner() {
                 </div>
                 <span className="score-percentage">{styleScore}% Match</span>
               </div>
+
+              {aiSource && (
+                <div className="ai-source-badge-pill">
+                  <span>⚡ {aiSource}</span>
+                </div>
+              )}
+
               <p className="stylist-critique">"{styleFeedback}"</p>
+
+              {stylingTip && (
+                <div className="stylist-tip-box">
+                  <span className="tip-icon">💡</span>
+                  <div className="tip-text">
+                    <strong>Stylist Pro-Tip:</strong> {stylingTip}
+                  </div>
+                </div>
+              )}
+
               <div className="progress-bar-wrap">
                 <div
                   className="progress-bar-fill"
                   style={{ width: `${styleScore}%` }}
                 ></div>
               </div>
+
+              {/* Consult Gemini Button */}
+              <button
+                type="button"
+                onClick={handleConsultGeminiStylist}
+                disabled={aiConsulting}
+                className="consult-gemini-btn"
+              >
+                <Sparkles size={15} />
+                <span>
+                  {aiConsulting ? "Gemini Stylist is Reviewing..." : "Consult Gemini AI Stylist"}
+                </span>
+              </button>
             </div>
 
-            {/* Randomizer Button */}
-            <button
-              onClick={handleRandomize}
-              className="button button-accent randomize-big-btn"
-            >
-              <Shuffle size={18} />
-              <span>Randomize Outfit for {selectedOccasion}</span>
-            </button>
+            {/* Assemble & Shuffle Buttons */}
+            <div className="planner-action-btns-grid">
+              <button
+                type="button"
+                onClick={handleGeminiAutoAssemble}
+                disabled={autoAssembling}
+                className="button button-accent gemini-assemble-btn"
+              >
+                <Sparkles size={16} />
+                <span>{autoAssembling ? "Curating..." : `AI Assemble for ${selectedOccasion}`}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleRandomize}
+                className="button button-outline shuffle-btn"
+                title="Shuffle Random Combination"
+              >
+                <Shuffle size={16} />
+                <span>Shuffle</span>
+              </button>
+            </div>
 
             {/* Outfit Name Input */}
             <div className="control-group">
@@ -507,7 +810,9 @@ export default function OutfitPlanner() {
                       if (activePickingSlot === "accessory") setSelectedAccessory(item);
                       setActivePickingSlot(null);
                     }}
-                    className="picker-item-card"
+                    className={`picker-item-card ${
+                      scoreItemForOccasion(item, selectedOccasion) < 20 ? "mismatch-dim" : ""
+                    }`}
                   >
                     <img
                       src={item.enhancedImage || item.image}
@@ -515,7 +820,12 @@ export default function OutfitPlanner() {
                       className="picker-img"
                     />
                     <strong>{item.name}</strong>
-                    <span>{item.color}</span>
+                    <span>{item.color} • {item.category}</span>
+                    {scoreItemForOccasion(item, selectedOccasion) >= 60 ? (
+                      <span className="picker-match-badge">✓ Fits {selectedOccasion}</span>
+                    ) : scoreItemForOccasion(item, selectedOccasion) < 20 ? (
+                      <span className="picker-mismatch-badge">⚠ Conflicts with {selectedOccasion}</span>
+                    ) : null}
                   </div>
                 ))
               )}

@@ -2,78 +2,27 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 
 const AppContext = createContext();
 
-export const DEMO_USERS = [
-  {
-    id: "u_default",
-    name: "Maya Lin",
-    handle: "maya_style",
-    email: "maya.lin@gmail.com",
-    phone: "9876543210",
-    registrationMethod: "gmail",
-    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-    bio: "College student & sustainable fashion enthusiast ✨ Mixing 90s vintage with daily fits.",
-    location: "New York, NY",
-    followers: 1240,
-    following: 480,
-    salesCount: 14,
-    rating: 4.9,
-  },
-  {
-    id: "u_sophia",
-    name: "Sophia Chen",
-    handle: "sophia_rework",
-    email: "sophia.rework@gmail.com",
-    phone: "9812345678",
-    registrationMethod: "gmail",
-    avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150&auto=format&fit=crop&q=80",
-    bio: "DIY & Rework artist 🎨 Giving thrifted denim and jackets a second life.",
-    location: "San Francisco, CA",
-    followers: 4890,
-    following: 610,
-    salesCount: 62,
-    rating: 5.0,
-  },
-  {
-    id: "u_alex",
-    name: "Alex Rivers",
-    handle: "vintage_alex",
-    email: "alex.vintage@gmail.com",
-    phone: "9765432109",
-    registrationMethod: "phone",
-    avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80",
-    bio: "90s collegiate sweaters, retro sneakers, and heavy outerwear thrift hunter 🧥📦",
-    location: "Austin, TX",
-    followers: 2310,
-    following: 340,
-    salesCount: 29,
-    rating: 4.8,
-  },
-  {
-    id: "u_kai",
-    name: "Kai Tanaka",
-    handle: "kai_streetwear",
-    email: "kai.tanaka@gmail.com",
-    phone: "9823456789",
-    registrationMethod: "phone",
-    avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
-    bio: "Japanese denim & relaxed tailored silhouettes. Selling closet rotation pieces 🛹",
-    location: "Seattle, WA",
-    followers: 3120,
-    following: 290,
-    salesCount: 41,
-    rating: 4.9,
-  },
-];
-
 export function AppProvider({ children }) {
-  // Current user
+  // Current user (null when signed out - no dummy accounts)
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem("kloset_user");
-    return saved ? JSON.parse(saved) : DEMO_USERS[0];
+    if (!saved) return null;
+    try {
+      const parsed = JSON.parse(saved);
+      // Clean up legacy dummy demo accounts (u_default, u_sophia, etc.)
+      if (!parsed || (parsed.id && String(parsed.id).startsWith("u_"))) {
+        localStorage.removeItem("kloset_user");
+        localStorage.removeItem("kloset_token");
+        return null;
+      }
+      return parsed;
+    } catch {
+      return null;
+    }
   });
 
-  // User list (demo + DB users)
-  const [users, setUsers] = useState(DEMO_USERS);
+  // Real registered users from database only
+  const [users, setUsers] = useState([]);
 
   // Auth Modal State
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -85,6 +34,11 @@ export function AppProvider({ children }) {
     return saved ? JSON.parse(saved) : [];
   });
   const [isCartOpen, setIsCartOpen] = useState(false);
+
+  // Chat State
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [activeConversationId, setActiveConversationId] = useState(null);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   // Saved / Wishlist items
   const [savedItems, setSavedItems] = useState(() => {
@@ -101,19 +55,104 @@ export function AppProvider({ children }) {
       const res = await fetch("http://localhost:5001/api/auth/users");
       if (res.ok) {
         const dbUsers = await res.json();
-        if (Array.isArray(dbUsers) && dbUsers.length > 0) {
-          // Merge avoiding duplicates by handle/id
-          const combined = [...dbUsers];
-          DEMO_USERS.forEach((du) => {
-            if (!combined.some((u) => u.handle === du.handle || u.id === du.id)) {
-              combined.push(du);
-            }
-          });
-          setUsers(combined);
+        if (Array.isArray(dbUsers)) {
+          setUsers(dbUsers);
         }
       }
     } catch (err) {
-      console.warn("Could not load backend users, using demo users:", err.message);
+      console.warn("Could not load backend users:", err.message);
+    }
+  };
+
+  // Fetch unread count for chat
+  const fetchUnreadChatCount = async () => {
+    if (!currentUser?.id) {
+      setUnreadChatCount(0);
+      return;
+    }
+    try {
+      const res = await fetch(`http://localhost:5001/api/chat/user/${currentUser.id}`);
+      if (res.ok) {
+        const chats = await res.json();
+        if (Array.isArray(chats)) {
+          let count = 0;
+          chats.forEach((c) => {
+            if (c.buyerId === currentUser.id && c.unreadBuyer > 0) count += c.unreadBuyer;
+            if (c.sellerId === currentUser.id && c.unreadSeller > 0) count += c.unreadSeller;
+          });
+          setUnreadChatCount(count);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    if (currentUser?.id) {
+      fetchUnreadChatCount();
+      const interval = setInterval(fetchUnreadChatCount, 15000);
+      return () => clearInterval(interval);
+    } else {
+      setUnreadChatCount(0);
+    }
+  }, [currentUser?.id]);
+
+  const openChatWithItem = async (item, initialMessage = "") => {
+    if (!currentUser) {
+      showToast("Please sign in or register to chat with the seller!", "info");
+      openAuthModal("login");
+      return;
+    }
+
+    if (!item) {
+      setIsChatOpen(true);
+      return;
+    }
+
+    if (item.userId && String(item.userId) === String(currentUser.id)) {
+      showToast("This is your own piece! Opening your conversations inbox.", "info");
+      setIsChatOpen(true);
+      return;
+    }
+
+    try {
+      const payload = {
+        buyerId: currentUser.id || currentUser._id,
+        buyerName: currentUser.name,
+        buyerHandle: currentUser.handle || "buyer",
+        buyerAvatar: currentUser.avatar || "",
+        sellerId: item.userId || "seller_curated",
+        sellerName: item.sellerName || "Thrift Curator",
+        sellerHandle: item.sellerHandle || "seller",
+        sellerAvatar: item.sellerAvatar || "",
+        itemId: item._id || item.id,
+        itemName: item.name,
+        itemImage: item.image || item.enhancedImage || "",
+        itemPrice: Number(item.price) || 0,
+        itemOriginalPrice: Number(item.originalPrice) || 0,
+        itemBrand: item.brand || "",
+        itemSize: item.size || "Standard",
+        initialMessage: initialMessage || "",
+      };
+
+      const res = await fetch("http://localhost:5001/api/chat/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const conversation = await res.json();
+        setActiveConversationId(conversation._id);
+        setIsChatOpen(true);
+        fetchUnreadChatCount();
+      } else {
+        setIsChatOpen(true);
+      }
+    } catch (err) {
+      console.error("Error starting chat:", err);
+      setIsChatOpen(true);
     }
   };
 
@@ -122,7 +161,11 @@ export function AppProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("kloset_user", JSON.stringify(currentUser));
+    if (currentUser) {
+      localStorage.setItem("kloset_user", JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem("kloset_user");
+    }
   }, [currentUser]);
 
   useEffect(() => {
@@ -217,19 +260,41 @@ export function AppProvider({ children }) {
 
   const logoutUser = () => {
     localStorage.removeItem("kloset_token");
-    setCurrentUser(DEMO_USERS[0]);
-    showToast("Signed out. Switched to guest browsing mode.");
+    localStorage.removeItem("kloset_user");
+    setCurrentUser(null);
+    showToast("Signed out. Redirecting to login...");
   };
 
-  const addToCart = (item) => {
-    if (cart.some((c) => c._id === item._id)) {
-      showToast("Item is already in your shopping bag!", "info");
+  const addToCart = (item, quantity = 1, openDrawer = false) => {
+    setCart((prev) => {
+      const existingIndex = prev.findIndex((c) => c._id === item._id);
+      if (existingIndex > -1) {
+        const updated = [...prev];
+        const currentQty = updated[existingIndex].quantity || 1;
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          quantity: currentQty + quantity,
+        };
+        return updated;
+      }
+      return [...prev, { ...item, quantity: quantity || 1 }];
+    });
+    showToast(`Added "${item.name}" to your shopping bag! 🛍️`);
+    if (openDrawer) {
       setIsCartOpen(true);
+    }
+  };
+
+  const updateQuantity = (id, newQty) => {
+    if (newQty <= 0) {
+      removeFromCart(id);
       return;
     }
-    setCart((prev) => [...prev, item]);
-    showToast(`Added "${item.name}" to bag!`);
-    setIsCartOpen(true);
+    setCart((prev) =>
+      prev.map((item) =>
+        item._id === id ? { ...item, quantity: newQty } : item
+      )
+    );
   };
 
   const removeFromCart = (id) => {
@@ -264,6 +329,7 @@ export function AppProvider({ children }) {
         users,
         cart,
         addToCart,
+        updateQuantity,
         removeFromCart,
         clearCart,
         isCartOpen,
@@ -281,6 +347,14 @@ export function AppProvider({ children }) {
         registerUser,
         loginUser,
         logoutUser,
+        // Chat & Buyer-Seller negotiations
+        isChatOpen,
+        setIsChatOpen,
+        activeConversationId,
+        setActiveConversationId,
+        unreadChatCount,
+        fetchUnreadChatCount,
+        openChatWithItem,
       }}
     >
       {children}

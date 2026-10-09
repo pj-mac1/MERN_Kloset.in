@@ -4,11 +4,14 @@ import { AppProvider, useApp } from "./context/AppContext";
 import Navbar from "./components/Navbar";
 import CartDrawer from "./components/CartDrawer";
 import AuthModal from "./components/AuthModal";
+import ChatBox from "./components/ChatBox";
 import ThriftMarket from "./pages/ThriftMarket";
 import MyCloset from "./pages/MyCloset";
 import OutfitPlanner from "./pages/OutfitPlanner";
 import AddClothing from "./pages/AddClothing";
 import ProfilePage from "./pages/ProfilePage";
+import CheckoutPage from "./pages/CheckoutPage";
+import AuthPage from "./pages/AuthPage";
 import "./style.css";
 
 function ToastNotification() {
@@ -28,6 +31,7 @@ function MainApp() {
       <Navbar />
       <CartDrawer />
       <AuthModal />
+      <ChatBox />
       <ToastNotification />
 
       <main className="main-content">
@@ -42,6 +46,10 @@ function MainApp() {
           <Route path="/add" element={<AddClothing />} />
           <Route path="/add-clothing" element={<AddClothing />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/checkout" element={<CheckoutPage />} />
+          <Route path="/login" element={<AuthPage initialMode="login" />} />
+          <Route path="/register" element={<AuthPage initialMode="register" />} />
+          <Route path="/auth" element={<AuthPage />} />
           <Route path="*" element={<Navigate to="/market" replace />} />
         </Routes>
       </main>

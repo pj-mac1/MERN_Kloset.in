@@ -147,11 +147,17 @@ router.patch("/:id/toggle-sale", async (req, res) => {
       return res.status(404).json({ message: "Clothing item not found" });
     }
 
-    const { isForSale, price, condition } = req.body;
+    const { isForSale, price, originalPrice, condition, isCustomized } = req.body;
     item.isForSale = isForSale !== undefined ? isForSale : !item.isForSale;
     item.isPublic = item.isForSale ? true : (req.body.isPublic ?? false);
-    if (price !== undefined) item.price = price;
+    if (price !== undefined && price !== null && price !== "") {
+      item.price = Number(price);
+    }
+    if (originalPrice !== undefined && originalPrice !== null && originalPrice !== "") {
+      item.originalPrice = Number(originalPrice);
+    }
     if (condition) item.condition = condition;
+    if (isCustomized !== undefined) item.isCustomized = Boolean(isCustomized);
 
     const saved = await item.save();
     res.status(200).json(saved);

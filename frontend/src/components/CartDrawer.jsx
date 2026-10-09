@@ -1,10 +1,12 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { X, Trash2, ShoppingBag, ArrowRight, ShieldCheck, CheckCircle2 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { useApp } from "../context/AppContext";
 
 export default function CartDrawer() {
-  const { cart, removeFromCart, clearCart, isCartOpen, setIsCartOpen, currentUser, showToast } =
+  const navigate = useNavigate();
+  const { cart, updateQuantity, removeFromCart, clearCart, isCartOpen, setIsCartOpen, currentUser, showToast } =
     useApp();
   const [loading, setLoading] = useState(false);
   const [orderComplete, setOrderComplete] = useState(null);
@@ -28,7 +30,8 @@ export default function CartDrawer() {
 
   if (!isCartOpen) return null;
 
-  const subtotal = cart.reduce((acc, item) => acc + (item.price || 0), 0);
+  const subtotal = cart.reduce((acc, item) => acc + (item.price || 0) * (item.quantity || 1), 0);
+  const totalItemCount = cart.reduce((acc, item) => acc + (item.quantity || 1), 0);
   const total = subtotal;
 
   const handleCheckout = async (e) => {
@@ -41,12 +44,25 @@ export default function CartDrawer() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          buyerId: currentUser.id,
-          buyerName: currentUser.name,
-          buyerHandle: currentUser.handle,
-          items: cart,
+          buyerId: currentUser?.id || "u_guest",
+          buyerName: address.fullName,
+          buyerHandle: currentUser?.handle || "thrift_shopper",
+          items: cart.map((it) => ({
+            itemId: it._id,
+            name: it.name,
+            category: it.category,
+            price: it.price,
+            quantity: it.quantity || 1,
+            image: it.enhancedImage || it.image,
+            isCustomized: it.isCustomized,
+            condition: it.condition,
+            sellerId: it.userId,
+            sellerName: it.sellerName,
+            sellerHandle: it.sellerHandle,
+          })),
           shippingAddress: address,
           paymentMethod: "ThriftPay Digital Balance",
+          totalAmount: total,
         }),
       });
 
@@ -86,7 +102,7 @@ export default function CartDrawer() {
         <div className="drawer-header">
           <div className="drawer-header-title">
             <ShoppingBag size={20} />
-            <h3>Your Shopping Bag ({cart.length})</h3>
+            <h3>Your Shopping Bag ({totalItemCount})</h3>
           </div>
           <button onClick={handleClose} className="drawer-close-btn">
             <X size={20} />
@@ -170,14 +186,36 @@ export default function CartDrawer() {
                         <span>{item.category}</span>
                         {item.size && <span>• Size {item.size}</span>}
                       </div>
-                      <div className="cart-item-price-row">
-                        <span className="cart-item-price">Rs. {item.price}</span>
+
+                      <div className="cart-item-qty-row">
+                        <div className="qty-control-inline">
+                          <button
+                            type="button"
+                            onClick={() => updateQuantity(item._id, (item.quantity || 1) - 1)}
+                            className="qty-btn-mini"
+                            title="Decrease quantity"
+                          >
+                            −
+                          </button>
+                          <span className="qty-val-mini">{item.quantity || 1}</span>
+                          <button
+                            type="button"
+                            onClick={() => updateQuantity(item._id, (item.quantity || 1) + 1)}
+                            className="qty-btn-mini"
+                            title="Increase quantity"
+                          >
+                            +
+                          </button>
+                        </div>
+
+                        <span className="cart-item-price">Rs. {(item.price || 0) * (item.quantity || 1)}</span>
+
                         <button
                           onClick={() => removeFromCart(item._id)}
                           className="cart-item-remove-btn"
                           title="Remove item"
                         >
-                          <Trash2 size={16} />
+                          <Trash2 size={15} />
                         </button>
                       </div>
                     </div>
@@ -185,11 +223,28 @@ export default function CartDrawer() {
                 ))}
               </div>
 
-              {/* Shipping & Payment Section */}
+              {/* Go to Dedicated Checkout Page Button */}
+              <div style={{ marginBottom: "14px" }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCartOpen(false);
+                    navigate("/checkout");
+                  }}
+                  className="button button-accent"
+                  style={{ width: "100%", padding: "12px", fontSize: "14px", fontWeight: "700" }}
+                >
+                  <ShoppingBag size={18} />
+                  <span>Go to Checkout Page</span>
+                  <ArrowRight size={18} />
+                </button>
+              </div>
+
+              {/* Quick in-drawer checkout */}
               <form onSubmit={handleCheckout} className="checkout-form">
                 <div className="checkout-section-title">
                   <ShieldCheck size={16} />
-                  <span>Delivery Address</span>
+                  <span>Quick In-Drawer Checkout</span>
                 </div>
 
                 <div className="checkout-input-row">

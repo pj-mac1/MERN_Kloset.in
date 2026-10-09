@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   PlusCircle,
   Tag,
@@ -12,13 +12,27 @@ import {
   Sparkles,
   Palette,
   Check,
+  MessageCircle,
 } from "lucide-react";
 import { useApp } from "../context/AppContext";
+import ConfirmModal from "../components/ConfirmModal";
 
 export default function MyCloset() {
-  const { currentUser, showToast } = useApp();
+  const navigate = useNavigate();
+  const { currentUser, showToast, setIsChatOpen } = useApp();
   const [clothes, setClothes] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Custom Delete Confirm Modal State
+  const [itemToDelete, setItemToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // Redirect to login if signed out
+  useEffect(() => {
+    if (!currentUser) {
+      navigate("/login");
+    }
+  }, [currentUser, navigate]);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -38,11 +52,12 @@ export default function MyCloset() {
   const [editingItem, setEditingItem] = useState(null);
 
   const fetchUserClothes = async () => {
+    if (!currentUser?.id) return;
     try {
       setLoading(true);
       const response = await fetch(`http://localhost:5001/api/clothes?userId=${currentUser.id}`);
       const data = await response.json();
-      setClothes(data);
+      setClothes(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Error fetching closet items:", err);
     } finally {
@@ -51,17 +66,28 @@ export default function MyCloset() {
   };
 
   useEffect(() => {
-    fetchUserClothes();
-  }, [currentUser.id]);
+    if (currentUser?.id) {
+      fetchUserClothes();
+    }
+  }, [currentUser?.id]);
+
+  if (!currentUser) {
+    return null;
+  }
 
   // Toggle sale status (make public/for sale vs private)
   const handleToggleSale = async (item) => {
     if (!item.isForSale) {
       // Open modal to set price
       setSellingModalItem(item);
+      const initialPrice = item.price && item.price > 0 ? item.price : 499;
+      const initialOrig =
+        item.originalPrice && item.originalPrice > 0
+          ? item.originalPrice
+          : Math.round(initialPrice * 2.2);
       setSellForm({
-        price: item.price || 25,
-        originalPrice: item.originalPrice || 50,
+        price: initialPrice,
+        originalPrice: initialOrig,
         condition: item.condition || "Like New",
         isCustomized: item.isCustomized || false,
       });
@@ -89,6 +115,14 @@ export default function MyCloset() {
     e.preventDefault();
     if (!sellingModalItem) return;
 
+    const parsedPrice = Number(sellForm.price) || 0;
+    const parsedOriginal = Number(sellForm.originalPrice) || 0;
+
+    if (parsedOriginal > 0 && parsedOriginal < parsedPrice) {
+      showToast("Original Retail Price (MRP) should be greater than or equal to Selling Price.", "error");
+      return;
+    }
+
     try {
       const response = await fetch(
         `http://localhost:5001/api/clothes/${sellingModalItem._id}/toggle-sale`,
@@ -98,8 +132,10 @@ export default function MyCloset() {
           body: JSON.stringify({
             isForSale: true,
             isPublic: true,
-            price: Number(sellForm.price),
+            price: parsedPrice,
+            originalPrice: parsedOriginal > 0 ? parsedOriginal : Math.round(parsedPrice * 2.2),
             condition: sellForm.condition,
+            isCustomized: Boolean(sellForm.isCustomized),
           }),
         }
       );
@@ -112,19 +148,30 @@ export default function MyCloset() {
     }
   };
 
-  // Delete item
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to remove this piece from your closet?")) return;
+  // Delete item handlers using custom ConfirmModal
+  const handleRequestDelete = (item) => {
+    setItemToDelete(item);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!itemToDelete) return;
+    setIsDeleting(true);
     try {
-      const response = await fetch(`http://localhost:5001/api/clothes/${id}`, {
+      const response = await fetch(`http://localhost:5001/api/clothes/${itemToDelete._id}`, {
         method: "DELETE",
       });
       if (response.ok) {
-        setClothes((prev) => prev.filter((c) => c._id !== id));
-        showToast("Piece removed from closet.");
+        setClothes((prev) => prev.filter((c) => c._id !== itemToDelete._id));
+        showToast(`"${itemToDelete.name}" removed from closet.`);
+        setItemToDelete(null);
+      } else {
+        showToast("Failed to remove piece from closet", "error");
       }
     } catch (err) {
       console.error("Delete error:", err);
+      showToast("Network error deleting piece", "error");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -132,10 +179,18 @@ export default function MyCloset() {
   const handleSaveEdit = async (e) => {
     e.preventDefault();
     try {
+      const payload = {
+        ...editingItem,
+        price: editingItem.price !== undefined && editingItem.price !== "" ? Number(editingItem.price) : 0,
+        originalPrice:
+          editingItem.originalPrice !== undefined && editingItem.originalPrice !== ""
+            ? Number(editingItem.originalPrice)
+            : 0,
+      };
       const response = await fetch(`http://localhost:5001/api/clothes/${editingItem._id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editingItem),
+        body: JSON.stringify(payload),
       });
       const updated = await response.json();
       if (response.ok) {
@@ -317,6 +372,15 @@ export default function MyCloset() {
                     </button>
 
                     <div className="closet-sub-actions">
+                      {isForSale && (
+                        <button
+                          onClick={() => setIsChatOpen(true)}
+                          className="closet-icon-btn chat-btn"
+                          title="View Buyer Inquiries & Offers"
+                        >
+                          <MessageCircle size={15} />
+                        </button>
+                      )}
                       <button
                         onClick={() => setEditingItem(item)}
                         className="closet-icon-btn"
@@ -325,7 +389,7 @@ export default function MyCloset() {
                         <Edit2 size={15} />
                       </button>
                       <button
-                        onClick={() => handleDelete(item._id)}
+                        onClick={() => handleRequestDelete(item)}
                         className="closet-icon-btn delete-btn"
                         title="Delete from Closet"
                       >
@@ -364,12 +428,13 @@ export default function MyCloset() {
                   min="1"
                   value={sellForm.price}
                   onChange={(e) => setSellForm({ ...sellForm, price: e.target.value })}
+                  placeholder="e.g. 3999"
                   required
                 />
               </div>
 
               <div className="form-group">
-                <label>Original Retail Price (Rs.) - optional for showing discount</label>
+                <label>Original Retail Price / MRP (Rs.)</label>
                 <input
                   type="number"
                   min="0"
@@ -377,7 +442,11 @@ export default function MyCloset() {
                   onChange={(e) =>
                     setSellForm({ ...sellForm, originalPrice: e.target.value })
                   }
+                  placeholder="e.g. 9999"
                 />
+                <small style={{ color: "#64748b", marginTop: "4px", display: "block", fontSize: "0.8rem" }}>
+                  Original first retail price (e.g. 9999) — used to display strikethrough price and thrift discount %.
+                </small>
               </div>
 
               <div className="form-group">
@@ -498,6 +567,33 @@ export default function MyCloset() {
                 />
               </div>
 
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div className="form-group">
+                  <label>Selling Price (Rs.)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={editingItem.price ?? ""}
+                    onChange={(e) =>
+                      setEditingItem({ ...editingItem, price: e.target.value })
+                    }
+                    placeholder="e.g. 3999"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Original Retail Price (Rs.)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editingItem.originalPrice ?? ""}
+                    onChange={(e) =>
+                      setEditingItem({ ...editingItem, originalPrice: e.target.value })
+                    }
+                    placeholder="e.g. 9999"
+                  />
+                </div>
+              </div>
+
               <div className="modal-actions-bar">
                 <button
                   type="button"
@@ -514,6 +610,18 @@ export default function MyCloset() {
           </div>
         </div>
       )}
+      {/* Custom Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={Boolean(itemToDelete)}
+        onClose={() => setItemToDelete(null)}
+        onConfirm={handleConfirmDelete}
+        item={itemToDelete}
+        title="Remove Piece from Closet?"
+        message="Are you sure you want to remove this garment from your personal wardrobe? This action cannot be undone."
+        confirmText="Yes, Remove Piece"
+        cancelText="Keep in Closet"
+        loading={isDeleting}
+      />
     </div>
   );
 }
