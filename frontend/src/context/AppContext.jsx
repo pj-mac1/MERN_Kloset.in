@@ -15,6 +15,8 @@ export function AppProvider({ children }) {
         localStorage.removeItem("kloset_token");
         return null;
       }
+      if (parsed.id && !parsed._id) parsed._id = parsed.id;
+      if (parsed._id && !parsed.id) parsed.id = parsed._id;
       return parsed;
     } catch {
       return null;
@@ -218,11 +220,18 @@ export function AppProvider({ children }) {
         localStorage.setItem("kloset_token", data.token);
       }
 
-      setCurrentUser(data.user);
+      const userData = {
+        ...data.user,
+        id: data.user.id || data.user._id,
+        _id: data.user._id || data.user.id,
+      };
+
+      setCurrentUser(userData);
       setIsAuthModalOpen(false);
-      showToast(`Welcome to Kloset, ${data.user.name}! Registered via ${data.user.registrationMethod.toUpperCase()} 🎉`);
+      const methodLabel = (data.user?.registrationMethod || "GMAIL").toUpperCase();
+      showToast(`Welcome to Kloset, ${data.user?.name || "Thrifter"}! Registered via ${methodLabel} 🎉`);
       fetchDbUsers();
-      return { success: true, user: data.user };
+      return { success: true, user: userData };
     } catch (err) {
       showToast(err.message, "error");
       return { success: false, error: err.message };
@@ -248,10 +257,16 @@ export function AppProvider({ children }) {
         localStorage.setItem("kloset_token", data.token);
       }
 
-      setCurrentUser(data.user);
+      const userData = {
+        ...data.user,
+        id: data.user.id || data.user._id,
+        _id: data.user._id || data.user.id,
+      };
+
+      setCurrentUser(userData);
       setIsAuthModalOpen(false);
-      showToast(`Welcome back, ${data.user.name}! 👋`);
-      return { success: true, user: data.user };
+      showToast(`Welcome back, ${userData.name}! 👋`);
+      return { success: true, user: userData };
     } catch (err) {
       showToast(err.message, "error");
       return { success: false, error: err.message };

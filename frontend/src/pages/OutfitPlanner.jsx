@@ -19,13 +19,7 @@ import { useApp } from "../context/AppContext";
 
 export default function OutfitPlanner() {
   const navigate = useNavigate();
-  const { currentUser, showToast } = useApp();
-
-  useEffect(() => {
-    if (!currentUser) {
-      navigate("/login");
-    }
-  }, [currentUser, navigate]);
+  const { currentUser, showToast, openAuthModal } = useApp();
 
   const [closetItems, setClosetItems] = useState([]);
   const [allUserItems, setAllUserItems] = useState([]);
@@ -266,15 +260,22 @@ export default function OutfitPlanner() {
 
   // Fetch ONLY user's private closet items and saved outfits
   const fetchData = async () => {
-    if (!currentUser?.id) return;
+    const userId = currentUser?.id || currentUser?._id;
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
 
       // Fetch user's own items ONLY (no public/other user catalog items)
       const itemsRes = await fetch(
-        `http://localhost:5001/api/clothes?userId=${currentUser.id}`
+        `http://localhost:5001/api/clothes?userId=${userId}`
       );
-      let userItems = await itemsRes.json();
+      let userItems = [];
+      if (itemsRes.ok) {
+        userItems = await itemsRes.json();
+      }
       if (!Array.isArray(userItems)) userItems = [];
 
       setAllUserItems(userItems);
@@ -286,10 +287,12 @@ export default function OutfitPlanner() {
 
       // Also fetch saved outfits
       const outfitsRes = await fetch(
-        `http://localhost:5001/api/outfits?userId=${currentUser.id}`
+        `http://localhost:5001/api/outfits?userId=${userId}`
       );
-      const outfitsData = await outfitsRes.json();
-      setSavedOutfits(Array.isArray(outfitsData) ? outfitsData : []);
+      if (outfitsRes.ok) {
+        const outfitsData = await outfitsRes.json();
+        setSavedOutfits(Array.isArray(outfitsData) ? outfitsData : []);
+      }
 
       // Auto-assemble outfit matching the current occasion strictly from user's private wardrobe!
       assembleOutfitForOccasion(selectedOccasion, activePool);
@@ -301,13 +304,45 @@ export default function OutfitPlanner() {
   };
 
   useEffect(() => {
-    if (currentUser?.id) {
+    const userId = currentUser?.id || currentUser?._id;
+    if (userId) {
       fetchData();
+    } else {
+      setLoading(false);
     }
-  }, [currentUser?.id]);
+  }, [currentUser?.id, currentUser?._id]);
 
   if (!currentUser) {
-    return null;
+    return (
+      <div className="planner-container" style={{ padding: "40px 16px" }}>
+        <div className="empty-private-planner-card" style={{ maxWidth: "540px", margin: "40px auto" }}>
+          <div className="empty-planner-icon-wrap">
+            <Lock size={32} />
+          </div>
+          <h3>Private Wardrobe Access Required</h3>
+          <p>
+            The Outfit Planner operates exclusively on your personal private wardrobe.
+            Sign in with your account or create a new profile to start assembling and styling your outfits!
+          </p>
+          <div className="empty-planner-actions">
+            <button
+              type="button"
+              onClick={() => (openAuthModal ? openAuthModal("login") : navigate("/login"))}
+              className="button button-primary"
+            >
+              Sign In to Your Wardrobe
+            </button>
+            <button
+              type="button"
+              onClick={() => (openAuthModal ? openAuthModal("register") : navigate("/register"))}
+              className="button button-secondary"
+            >
+              Create Account (New User)
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   // Randomize Outfit generator (strictly adheres to selectedOccasion)
@@ -376,19 +411,19 @@ export default function OutfitPlanner() {
 
       const data = await res.json();
       if (data.topId) {
-        const topMatch = closetItems.find((i) => i._id === data.topId);
+        const topMatch = closetItems.find((i) => String(i._id) === String(data.topId));
         if (topMatch) setSelectedTop(topMatch);
       }
       if (data.bottomId) {
-        const btmMatch = closetItems.find((i) => i._id === data.bottomId);
+        const btmMatch = closetItems.find((i) => String(i._id) === String(data.bottomId));
         if (btmMatch) setSelectedBottom(btmMatch);
       }
       if (data.shoesId) {
-        const shoeMatch = closetItems.find((i) => i._id === data.shoesId);
+        const shoeMatch = closetItems.find((i) => String(i._id) === String(data.shoesId));
         if (shoeMatch) setSelectedShoes(shoeMatch);
       }
       if (data.accessoryId) {
-        const accMatch = closetItems.find((i) => i._id === data.accessoryId);
+        const accMatch = closetItems.find((i) => String(i._id) === String(data.accessoryId));
         if (accMatch) setSelectedAccessory(accMatch);
       }
 
@@ -415,15 +450,18 @@ export default function OutfitPlanner() {
       return;
     }
 
+    const userId = currentUser?.id || currentUser?._id;
+    if (!userId) return;
+
     try {
       const response = await fetch("http://localhost:5001/api/outfits", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: currentUser.id,
-          creatorHandle: currentUser.handle,
-          creatorName: currentUser.name,
-          creatorAvatar: currentUser.avatar,
+          userId: userId,
+          creatorHandle: currentUser.handle || "wardrobe_user",
+          creatorName: currentUser.name || "User",
+          creatorAvatar: currentUser.avatar || "",
           name: outfitName || `${selectedOccasion} Look`,
           occasion: selectedOccasion,
           items: {
@@ -548,15 +586,28 @@ export default function OutfitPlanner() {
       </div>
 
       {activeTab === "creator" ? (
-        closetItems.length === 0 ? (
+        loading ? (
+          <div className="empty-private-planner-card" style={{ padding: "60px 20px" }}>
+            <div className="empty-planner-icon-wrap">
+              <Sparkles size={32} />
+            </div>
+            <h3>Opening Your Private Wardrobe...</h3>
+            <p>Gathering your personal clothing items and styling fits...</p>
+          </div>
+        ) : closetItems.length === 0 ? (
           <div className="empty-private-planner-card">
             <div className="empty-planner-icon-wrap">
               <Lock size={32} />
             </div>
-            <h3>Your Private Wardrobe is Empty</h3>
+            <h3>
+              {allUserItems.length > 0 && wardrobeFilter === "private"
+                ? "No Private Pieces in Wardrobe"
+                : "Your Private Wardrobe is Empty"}
+            </h3>
             <p>
-              The Outfit Planner only creates looks from garments saved privately in your wardrobe.
-              Upload clothes in <strong>"Upload & AI Studio"</strong> and choose <strong>Private Wardrobe</strong> to start assembling outfits!
+              {allUserItems.length > 0 && wardrobeFilter === "private"
+                ? `You have ${allUserItems.length} items in your closet, but they are currently listed on the marketplace. You can style with all your pieces or upload new private garments.`
+                : "The Outfit Planner only creates looks from garments saved privately in your wardrobe. Upload clothes in 'Upload & AI Studio' and choose Private Wardrobe to start assembling outfits!"}
             </p>
             <div className="empty-planner-actions">
               <button
@@ -570,7 +621,7 @@ export default function OutfitPlanner() {
                   onClick={() => handleWardrobeFilterChange("all")}
                   className="button button-secondary"
                 >
-                  Use {allUserItems.length} Pieces from My Closet (Including Listed)
+                  Style with All {allUserItems.length} Pieces (Including Listed)
                 </button>
               )}
             </div>

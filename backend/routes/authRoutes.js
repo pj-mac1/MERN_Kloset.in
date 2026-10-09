@@ -42,14 +42,16 @@ router.post("/register", async (req, res) => {
     // Validation based on registration method
     const method = (registrationMethod || "").toLowerCase();
     let sanitizedEmail = email ? email.trim().toLowerCase() : undefined;
-    let sanitizedPhone = phone ? phone.trim() : undefined;
+    let sanitizedPhone = phone ? phone.trim().replace(/[\s\-\(\)]/g, "") : undefined;
 
     if (method === "phone") {
       if (!sanitizedPhone) {
         return res.status(400).json({ message: "Phone number is required for phone registration" });
       }
       // Check if phone already registered
-      const existingPhone = await User.findOne({ phone: sanitizedPhone });
+      const existingPhone = await User.findOne({
+        $or: [{ phone: sanitizedPhone }, { phone: phone.trim() }],
+      });
       if (existingPhone) {
         return res.status(400).json({ message: "This phone number is already registered. Please sign in." });
       }
@@ -99,16 +101,17 @@ router.post("/register", async (req, res) => {
 
     const userResponse = {
       id: savedUser._id.toString(),
+      _id: savedUser._id.toString(),
       name: savedUser.name,
       email: savedUser.email || "",
       phone: savedUser.phone || "",
-      registrationMethod: savedUser.registrationMethod,
+      registrationMethod: savedUser.registrationMethod || (savedUser.email ? "gmail" : "phone"),
       handle: savedUser.handle,
       avatar: savedUser.avatar,
       bio: savedUser.bio,
       location: savedUser.location,
-      followers: savedUser.followers,
-      following: savedUser.following,
+      followers: savedUser.followers || 0,
+      following: savedUser.following || 0,
     };
 
     res.status(201).json({
@@ -119,8 +122,14 @@ router.post("/register", async (req, res) => {
     });
   } catch (error) {
     console.error("Register error:", error);
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern || {})[0] || "credential";
+      return res.status(400).json({
+        message: `An account with this ${field} is already registered. Please sign in instead.`,
+      });
+    }
     res.status(500).json({
-      message: "Registration failed",
+      message: error.message || "Registration failed",
       error: error.message,
     });
   }
@@ -139,12 +148,14 @@ router.post("/login", async (req, res) => {
     }
 
     const cleanIdentifier = identifier.trim();
+    const normalizedPhone = cleanIdentifier.replace(/[\s\-\(\)]/g, "");
 
     // Search by email OR phone OR handle
     const user = await User.findOne({
       $or: [
         { email: cleanIdentifier.toLowerCase() },
         { phone: cleanIdentifier },
+        { phone: normalizedPhone },
         { handle: cleanIdentifier.replace(/^@/, "") },
       ],
     });
@@ -170,16 +181,17 @@ router.post("/login", async (req, res) => {
 
     const userResponse = {
       id: user._id.toString(),
+      _id: user._id.toString(),
       name: user.name,
       email: user.email || "",
       phone: user.phone || "",
-      registrationMethod: user.registrationMethod,
+      registrationMethod: user.registrationMethod || (user.email ? "gmail" : "phone"),
       handle: user.handle,
       avatar: user.avatar,
       bio: user.bio,
       location: user.location,
-      followers: user.followers,
-      following: user.following,
+      followers: user.followers || 0,
+      following: user.following || 0,
     };
 
     res.status(200).json({
@@ -191,7 +203,7 @@ router.post("/login", async (req, res) => {
   } catch (error) {
     console.error("Login error:", error);
     res.status(500).json({
-      message: "Login failed",
+      message: error.message || "Login failed",
       error: error.message,
     });
   }
