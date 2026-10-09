@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Sliders,
   Calendar,
+  Lock,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { useApp } from "../context/AppContext";
@@ -27,6 +28,8 @@ export default function OutfitPlanner() {
   }, [currentUser, navigate]);
 
   const [closetItems, setClosetItems] = useState([]);
+  const [allUserItems, setAllUserItems] = useState([]);
+  const [wardrobeFilter, setWardrobeFilter] = useState("private"); // 'private' | 'all'
   const [savedOutfits, setSavedOutfits] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -170,9 +173,23 @@ export default function OutfitPlanner() {
 
   // Smart Occasion-Based Outfit Assembler
   const assembleOutfitForOccasion = (occ, itemsPool = closetItems) => {
-    if (!itemsPool || itemsPool.length === 0) return;
+    if (!itemsPool || itemsPool.length === 0) {
+      setSelectedTop(null);
+      setSelectedBottom(null);
+      setSelectedShoes(null);
+      setSelectedAccessory(null);
+      setStyleScore(0);
+      setOutfitName("Empty Private Wardrobe");
+      setStyleFeedback(
+        "Your private wardrobe has no pieces yet. Upload items in 'Add to Wardrobe' as Private Wardrobe to begin generating personalized outfits!"
+      );
+      setStylingTip("Keep garments private to use them exclusively for outfit planning.");
+      return;
+    }
 
-    const tops = itemsPool.filter((i) => i.category === "Tops" || i.category === "Outerwear");
+    const tops = itemsPool.filter(
+      (i) => i.category === "Tops" || i.category === "Outerwear" || i.category === "Dresses"
+    );
     const bottoms = itemsPool.filter((i) => i.category === "Bottoms");
     const shoes = itemsPool.filter((i) => i.category === "Shoes");
     const accs = itemsPool.filter(
@@ -184,10 +201,10 @@ export default function OutfitPlanner() {
     const bestShoes = pickBestSlotItem(shoes, occ);
     const bestAcc = pickBestSlotItem(accs, occ);
 
-    if (bestTop) setSelectedTop(bestTop);
-    if (bestBottom) setSelectedBottom(bestBottom);
-    if (bestShoes) setSelectedShoes(bestShoes);
-    if (bestAcc) setSelectedAccessory(bestAcc);
+    setSelectedTop(bestTop || null);
+    setSelectedBottom(bestBottom || null);
+    setSelectedShoes(bestShoes || null);
+    setSelectedAccessory(bestAcc || null);
 
     const calculatedScore = Math.floor(Math.random() * 5) + 94;
     setStyleScore(calculatedScore);
@@ -202,12 +219,12 @@ export default function OutfitPlanner() {
     };
 
     const critiques = {
-      Casual: `Effortless proportions with relaxed drape. The ${bestTop?.color || "neutral"} top and ${bestBottom?.color || "casual"} bottoms deliver an easygoing, comfortable daily aesthetic for casual outings.`,
-      College: `Smart collegiate aesthetic with high comfort for lectures and cafe walks. Clean relaxed geometry.`,
+      Casual: `Effortless proportions with relaxed drape. The ${bestTop?.color || "neutral"} top and ${bestBottom?.color || "casual"} bottoms deliver an easygoing, comfortable daily aesthetic from your private wardrobe.`,
+      College: `Smart collegiate aesthetic with high comfort for lectures and cafe walks. Clean relaxed geometry from your personal pieces.`,
       Formal: `Sharp tailored contours with sophisticated balance. Intentional proportions suited for professional and formal settings.`,
-      Streetwear: `Bold streetwear volume and balanced textures. Footwear anchors the silhouette with retro-modern edge.`,
-      Party: `High visual energy with refined drape. Clean contrast highlights statement accessories for night venues.`,
-      "Date Night": `Subtle texture depth and flattering clean silhouette. Sophisticated undertones without looking overdressed.`,
+      Streetwear: `Bold streetwear volume and balanced textures from your private closet.`,
+      Party: `High visual energy with refined drape. Clean contrast highlights statement personal pieces for night venues.`,
+      "Date Night": `Subtle texture depth and flattering clean silhouette from your private pieces.`,
     };
 
     const tips = {
@@ -229,38 +246,43 @@ export default function OutfitPlanner() {
   const handleSelectOccasion = (occ) => {
     setSelectedOccasion(occ);
     assembleOutfitForOccasion(occ, closetItems);
-    showToast(`Assembled ${occ} outfit! ✨`);
+    showToast(`Assembled ${occ} outfit from private wardrobe! ✨`);
   };
 
-  // Fetch user closet items and saved outfits
+  // Switch between strictly private pieces and all user pieces
+  const handleWardrobeFilterChange = (filterType) => {
+    setWardrobeFilter(filterType);
+    const pool =
+      filterType === "all" ? allUserItems : allUserItems.filter((i) => !i.isForSale);
+    setClosetItems(pool);
+    assembleOutfitForOccasion(selectedOccasion, pool);
+    showToast(
+      filterType === "all"
+        ? `Showing all ${allUserItems.length} personal wardrobe pieces`
+        : `Showing exclusively ${pool.length} private wardrobe pieces 🔒`,
+      "info"
+    );
+  };
+
+  // Fetch ONLY user's private closet items and saved outfits
   const fetchData = async () => {
     if (!currentUser?.id) return;
     try {
       setLoading(true);
 
-      // Fetch user's own items
+      // Fetch user's own items ONLY (no public/other user catalog items)
       const itemsRes = await fetch(
         `http://localhost:5001/api/clothes?userId=${currentUser.id}`
       );
       let userItems = await itemsRes.json();
       if (!Array.isArray(userItems)) userItems = [];
 
-      // Also fetch community catalog clothes so every occasion has full variety (shoes, bottoms, tops, accessories)
-      const catalogRes = await fetch(`http://localhost:5001/api/clothes?isPublic=true`);
-      let catalogItems = await catalogRes.json();
-      if (!Array.isArray(catalogItems)) catalogItems = [];
+      setAllUserItems(userItems);
 
-      // Combine user items + catalog items without duplicates
-      const combined = [...userItems];
-      const seen = new Set(userItems.map((i) => String(i._id)));
-      for (const item of catalogItems) {
-        if (!seen.has(String(item._id))) {
-          combined.push(item);
-          seen.add(String(item._id));
-        }
-      }
-
-      setClosetItems(combined);
+      // Filter strictly for private wardrobe pieces (!isForSale)
+      const privatePieces = userItems.filter((i) => !i.isForSale);
+      const activePool = wardrobeFilter === "all" ? userItems : privatePieces;
+      setClosetItems(activePool);
 
       // Also fetch saved outfits
       const outfitsRes = await fetch(
@@ -269,8 +291,8 @@ export default function OutfitPlanner() {
       const outfitsData = await outfitsRes.json();
       setSavedOutfits(Array.isArray(outfitsData) ? outfitsData : []);
 
-      // Auto-assemble outfit matching the current occasion!
-      assembleOutfitForOccasion(selectedOccasion, combined);
+      // Auto-assemble outfit matching the current occasion strictly from user's private wardrobe!
+      assembleOutfitForOccasion(selectedOccasion, activePool);
     } catch (err) {
       console.error("Error loading outfit data:", err);
     } finally {
@@ -412,7 +434,7 @@ export default function OutfitPlanner() {
           },
           styleScore,
           styleNotes: styleFeedback,
-          isPublic: true,
+          isPublic: false,
         }),
       });
 
@@ -469,32 +491,92 @@ export default function OutfitPlanner() {
     <div className="planner-container">
       {/* Planner Header */}
       <div className="planner-header">
-        <div>
-          <h2>Virtual Outfit Planner & Stylist</h2>
+        <div className="planner-title-block">
+          <div className="planner-title-row">
+            <h2>Virtual Outfit Planner & Stylist</h2>
+            <span className="planner-private-badge">
+              <Lock size={13} />
+              <span>
+                {wardrobeFilter === "private" ? "Private Wardrobe" : "All My Pieces"} •{" "}
+                {closetItems.length} {closetItems.length === 1 ? "Piece" : "Pieces"}
+              </span>
+            </span>
+          </div>
           <p>
-            Mix, match, and auto-generate outfits from your digital wardrobe so you never overthink
+            Mix, match, and auto-generate outfits exclusively from your personal private wardrobe so you never overthink
             what to wear for college, casual outings, or parties!
           </p>
         </div>
 
-        <div className="planner-tabs-switch">
-          <button
-            onClick={() => setActiveTab("creator")}
-            className={`tab-switch-btn ${activeTab === "creator" ? "active" : ""}`}
-          >
-            <Sparkles size={16} /> Stylist Canvas
-          </button>
-          <button
-            onClick={() => setActiveTab("lookbook")}
-            className={`tab-switch-btn ${activeTab === "lookbook" ? "active" : ""}`}
-          >
-            <Bookmark size={16} /> My Lookbook ({savedOutfits.length})
-          </button>
+        <div className="planner-header-controls">
+          {/* Wardrobe Scope Switcher */}
+          <div className="wardrobe-scope-pill">
+            <button
+              type="button"
+              onClick={() => handleWardrobeFilterChange("private")}
+              className={`scope-pill-btn ${wardrobeFilter === "private" ? "active" : ""}`}
+              title="Only private pieces kept in your personal wardrobe"
+            >
+              <Lock size={12} />
+              <span>Private Wardrobe</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleWardrobeFilterChange("all")}
+              className={`scope-pill-btn ${wardrobeFilter === "all" ? "active" : ""}`}
+              title="Include all pieces in your personal closet (including items listed for sale)"
+            >
+              <span>All My Pieces</span>
+            </button>
+          </div>
+
+          <div className="planner-tabs-switch">
+            <button
+              onClick={() => setActiveTab("creator")}
+              className={`tab-switch-btn ${activeTab === "creator" ? "active" : ""}`}
+            >
+              <Sparkles size={16} /> Stylist Canvas
+            </button>
+            <button
+              onClick={() => setActiveTab("lookbook")}
+              className={`tab-switch-btn ${activeTab === "lookbook" ? "active" : ""}`}
+            >
+              <Bookmark size={16} /> My Lookbook ({savedOutfits.length})
+            </button>
+          </div>
         </div>
       </div>
 
       {activeTab === "creator" ? (
-        <div className="planner-canvas-layout">
+        closetItems.length === 0 ? (
+          <div className="empty-private-planner-card">
+            <div className="empty-planner-icon-wrap">
+              <Lock size={32} />
+            </div>
+            <h3>Your Private Wardrobe is Empty</h3>
+            <p>
+              The Outfit Planner only creates looks from garments saved privately in your wardrobe.
+              Upload clothes in <strong>"Upload & AI Studio"</strong> and choose <strong>Private Wardrobe</strong> to start assembling outfits!
+            </p>
+            <div className="empty-planner-actions">
+              <button
+                onClick={() => navigate("/add")}
+                className="button button-primary"
+              >
+                <Plus size={16} /> Add Garment to Private Wardrobe
+              </button>
+              {allUserItems.length > 0 && wardrobeFilter === "private" && (
+                <button
+                  onClick={() => handleWardrobeFilterChange("all")}
+                  className="button button-secondary"
+                >
+                  Use {allUserItems.length} Pieces from My Closet (Including Listed)
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="planner-canvas-layout">
           {/* Left Mannequin Slots Display */}
           <div className="mannequin-slots-board">
             {/* Slot: TOP */}
@@ -713,6 +795,7 @@ export default function OutfitPlanner() {
             </button>
           </div>
         </div>
+        )
       ) : (
         /* Saved Lookbook Outfits Tab */
         <div className="lookbook-view">
@@ -785,7 +868,18 @@ export default function OutfitPlanner() {
         <div className="modal-overlay" onClick={() => setActivePickingSlot(null)}>
           <div className="modal-content picker-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Select {activePickingSlot.toUpperCase()} from Your Wardrobe</h3>
+              <div>
+                <h3 style={{ margin: 0 }}>
+                  Select {activePickingSlot.toUpperCase()} from Your{" "}
+                  {wardrobeFilter === "private" ? "Private Wardrobe" : "Wardrobe"}
+                </h3>
+                <p className="modal-subtitle" style={{ margin: "4px 0 0", fontSize: "12px", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "4px" }}>
+                  <Lock size={12} />
+                  {wardrobeFilter === "private"
+                    ? "Only showing pieces from your personal private wardrobe"
+                    : "Showing items from your personal collection"}
+                </p>
+              </div>
               <button
                 onClick={() => setActivePickingSlot(null)}
                 className="close-modal-btn"
@@ -796,9 +890,21 @@ export default function OutfitPlanner() {
 
             <div className="picker-grid">
               {getPickerItems().length === 0 ? (
-                <p className="empty-picker-msg">
-                  No {activePickingSlot} items found in your closet yet. Add some from the "Add Clothing" page!
-                </p>
+                <div className="empty-picker-prompt" style={{ gridColumn: "1 / -1", textAlign: "center", padding: "30px 16px" }}>
+                  <p className="empty-picker-msg" style={{ marginBottom: "12px", color: "var(--text-muted)", fontSize: "14px" }}>
+                    No {activePickingSlot} items found in your {wardrobeFilter === "private" ? "private wardrobe" : "wardrobe"} yet.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setActivePickingSlot(null);
+                      navigate("/add");
+                    }}
+                    className="button button-primary"
+                    style={{ fontSize: "13px", padding: "8px 16px" }}
+                  >
+                    + Add {activePickingSlot} to Private Wardrobe
+                  </button>
+                </div>
               ) : (
                 getPickerItems().map((item) => (
                   <div
